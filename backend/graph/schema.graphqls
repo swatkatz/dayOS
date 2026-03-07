@@ -1,0 +1,251 @@
+scalar UUID
+scalar Date
+scalar DateTime
+
+# Enums
+
+enum Category {
+  JOB
+  INTERVIEW
+  PROJECT
+  MEAL
+  BABY
+  EXERCISE
+  ADMIN
+}
+
+enum Priority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum DeadlineType {
+  HARD
+  HORIZON
+}
+
+enum Frequency {
+  DAILY
+  WEEKDAYS
+  WEEKLY
+  CUSTOM
+}
+
+enum TimeOfDay {
+  MORNING
+  MIDDAY
+  AFTERNOON
+  EVENING
+  ANY
+}
+
+enum ContextCategory {
+  LIFE
+  CONSTRAINTS
+  EQUIPMENT
+  PREFERENCES
+  CUSTOM
+}
+
+enum PlanStatus {
+  DRAFT
+  ACCEPTED
+}
+
+# Types
+
+type Task {
+  id:               UUID!
+  title:            String!
+  category:         Category!
+  priority:         Priority!
+  parentId:         UUID
+  parent:           Task
+  subtasks:         [Task!]!
+  estimatedMinutes: Int
+  actualMinutes:    Int!
+  deadlineType:     DeadlineType
+  deadlineDate:     Date
+  deadlineDays:     Int
+  notes:            String
+  isRoutine:        Boolean!
+  routine:          Routine
+  timesDeferred:    Int!
+  isCompleted:      Boolean!
+  completedAt:      DateTime
+  createdAt:        DateTime!
+  updatedAt:        DateTime!
+}
+
+type Routine {
+  id:                    UUID!
+  title:                 String!
+  category:              Category!
+  frequency:             Frequency!
+  daysOfWeek:            [Int!]
+  preferredTimeOfDay:    TimeOfDay
+  preferredDurationMin:  Int
+  notes:                 String
+  isActive:              Boolean!
+}
+
+type ContextEntry {
+  id:        UUID!
+  category:  ContextCategory!
+  key:       String!
+  value:     String!
+  isActive:  Boolean!
+  createdAt: DateTime!
+}
+
+type PlanBlock {
+  id:        String!
+  time:      String!
+  duration:  Int!
+  title:     String!
+  category:  Category!
+  taskId:    UUID
+  routineId: UUID
+  notes:     String
+  skipped:   Boolean!
+}
+
+type DayPlan {
+  id:        UUID!
+  planDate:  Date!
+  status:    PlanStatus!
+  blocks:    [PlanBlock!]!
+  messages:  [PlanMessage!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type PlanMessage {
+  id:        UUID!
+  role:      String!
+  content:   String!
+  createdAt: DateTime!
+}
+
+type TaskConversation {
+  id:           UUID!
+  parentTaskId: UUID
+  status:       String!
+  messages:     [TaskMessage!]!
+  createdAt:    DateTime!
+}
+
+type TaskMessage {
+  id:        UUID!
+  role:      String!
+  content:   String!
+  createdAt: DateTime!
+}
+
+# Inputs
+
+input CreateTaskInput {
+  title:            String!
+  category:         Category!
+  priority:         Priority!
+  parentId:         UUID
+  estimatedMinutes: Int
+  deadlineType:     DeadlineType
+  deadlineDate:     Date
+  deadlineDays:     Int
+  notes:            String
+  routineId:        UUID
+}
+
+input UpdateTaskInput {
+  title:            String
+  category:         Category
+  priority:         Priority
+  estimatedMinutes: Int
+  deadlineType:     DeadlineType
+  deadlineDate:     Date
+  deadlineDays:     Int
+  notes:            String
+  routineId:        UUID
+  isCompleted:      Boolean
+}
+
+input CreateRoutineInput {
+  title:                String!
+  category:             Category!
+  frequency:            Frequency!
+  daysOfWeek:           [Int!]
+  preferredTimeOfDay:   TimeOfDay
+  preferredDurationMin: Int
+  notes:                String
+}
+
+input UpdateRoutineInput {
+  title:                String
+  category:             Category
+  frequency:            Frequency
+  daysOfWeek:           [Int!]
+  preferredTimeOfDay:   TimeOfDay
+  preferredDurationMin: Int
+  notes:                String
+  isActive:             Boolean
+}
+
+input UpsertContextInput {
+  category: ContextCategory!
+  key:      String!
+  value:    String!
+}
+
+input UpdateBlockInput {
+  skipped:  Boolean
+  time:     String
+  duration: Int
+  notes:    String
+}
+
+# Query / Mutation
+
+type Query {
+  tasks(category: Category, includeCompleted: Boolean): [Task!]!
+  task(id: UUID!): Task
+  routines(activeOnly: Boolean): [Routine!]!
+  contextEntries(category: ContextCategory): [ContextEntry!]!
+  dayPlan(date: Date!): DayPlan
+  recentPlans(limit: Int): [DayPlan!]!
+  taskConversation(id: UUID!): TaskConversation
+}
+
+type Mutation {
+  # Tasks
+  createTask(input: CreateTaskInput!): Task!
+  updateTask(id: UUID!, input: UpdateTaskInput!): Task!
+  deleteTask(id: UUID!): Boolean!
+  completeTask(id: UUID!): Task!
+
+  # Routines
+  createRoutine(input: CreateRoutineInput!): Routine!
+  updateRoutine(id: UUID!, input: UpdateRoutineInput!): Routine!
+  deleteRoutine(id: UUID!): Boolean!
+
+  # Context
+  upsertContext(input: UpsertContextInput!): ContextEntry!
+  deleteContext(id: UUID!): Boolean!
+
+  # Plan chat
+  sendPlanMessage(date: Date!, message: String!): DayPlan!
+  acceptPlan(date: Date!): DayPlan!
+
+  # Block actions
+  skipBlock(planId: UUID!, blockId: String!): DayPlan!
+  updateBlock(planId: UUID!, blockId: String!, input: UpdateBlockInput!): DayPlan!
+
+  # Task scoping chat
+  startTaskConversation(message: String!): TaskConversation!
+  sendTaskMessage(conversationId: UUID!, message: String!): TaskConversation!
+  confirmTaskBreakdown(conversationId: UUID!): [Task!]!
+
+  # Carry-over
+  resolveSkippedBlock(planId: UUID!, blockId: String!, intentional: Boolean!): Boolean!
+}

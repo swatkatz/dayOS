@@ -1,0 +1,21 @@
+CREATE TABLE tasks (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title       TEXT NOT NULL,
+  category    TEXT NOT NULL,
+  priority    TEXT NOT NULL,
+  parent_id   UUID REFERENCES tasks(id) ON DELETE CASCADE,
+  estimated_minutes  INT,
+  actual_minutes     INT DEFAULT 0,
+  deadline_type   TEXT,
+  deadline_date   DATE,
+  deadline_days   INT,
+  notes       TEXT,
+  is_routine  BOOLEAN DEFAULT false,
+  routine_id  UUID REFERENCES routines(id) ON DELETE SET NULL,
+  times_deferred   INT DEFAULT 0,
+  last_deferred_at TIMESTAMPTZ,
+  is_completed   BOOLEAN DEFAULT false,
+  completed_at   TIMESTAMPTZ,
+  created_at     TIMESTAMPTZ DEFAULT now(),
+  updated_at     TIMESTAMPTZ DEFAULT now()
+);

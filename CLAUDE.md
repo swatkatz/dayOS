@@ -72,3 +72,16 @@ Use `/write-spec <context-name>` to generate a spec.
 - Read `docs/DESIGN.md` + the relevant spec before coding any context.
 - Cross-reference dependent specs when a context depends on another.
 
+## How to work
+
+1. **Read your spec first.** Read `CLAUDE.md` + `docs/DESIGN.md` + the relevant spec in `specs/`. Don't start coding until you understand the bounded context.
+2. **Write tests first.** Use the test anchors from the spec as starting points. Write a failing test, then implement. No exceptions.
+3. **Stay in your bounded context.** Only create/modify files owned by your spec. If your spec depends on another context, use its public interfaces — don't modify it.
+4. **Regenerate after schema changes.** Run `make generate` after any change to `schema.graphqls` or sqlc query files.
+5. **Log non-obvious decisions.** If you make a choice not dictated by the spec (data structure, error handling approach, etc.), add a brief comment explaining why.
+
+## Go conventions
+- Use `context.Context` as the first parameter on all public functions
+- Errors: return `error`, don't panic. Wrap with `fmt.Errorf("doing x: %w", err)`
+- Tests: `*_test.go` in the same package. Use table-driven tests when there are 3+ scenarios.
+- Naming: packages are lowercase single words matching the directory name
