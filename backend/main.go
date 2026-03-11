@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 
+	"dayos/auth"
 	"dayos/db"
 	"dayos/graph"
 
@@ -23,6 +24,11 @@ import (
 var migrations embed.FS
 
 func main() {
+	appSecret := os.Getenv("APP_SECRET")
+	if appSecret == "" {
+		log.Fatal("APP_SECRET environment variable is required")
+	}
+
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		log.Fatal("DATABASE_URL is not set")
@@ -54,8 +60,16 @@ func main() {
 		},
 	}))
 
-	http.Handle("/", playground.Handler("DayOS", "/graphql"))
-	http.Handle("/graphql", srv)
+	authMiddleware := auth.RequireAuth(appSecret)
+
+	if os.Getenv("RAILWAY_ENVIRONMENT") == "" {
+		// Dev mode: serve playground, but behind auth
+		http.Handle("/", authMiddleware(playground.Handler("DayOS", "/graphql")))
+	}
+	// Production: no playground — static files would be served here (owned by deployment spec)
+
+	// GraphQL endpoint always requires auth
+	http.Handle("/graphql", authMiddleware(srv))
 
 	log.Printf("DayOS server running on :%s", port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), nil))
