@@ -50,6 +50,7 @@ func main() {
 	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{
 		Resolvers: &graph.Resolver{
 			RoutineStore: queries,
+			TaskStore:    queries,
 		},
 	}))
 

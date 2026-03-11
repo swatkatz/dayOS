@@ -7,30 +7,105 @@ package graph
 
 import (
 	"context"
+	"dayos/db"
 	"dayos/graph/model"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 )
 
 // CreateTask is the resolver for the createTask field.
 func (r *mutationResolver) CreateTask(ctx context.Context, input model.CreateTaskInput) (*model.Task, error) {
-	panic(fmt.Errorf("not implemented: CreateTask - createTask"))
+	if err := validateDeadline(input.DeadlineType, input.DeadlineDate, input.DeadlineDays); err != nil {
+		return nil, err
+	}
+
+	if input.ParentID != nil {
+		parent, err := r.TaskStore.GetTask(ctx, uuidToPgtype(*input.ParentID))
+		if err != nil {
+			return nil, fmt.Errorf("parent task not found: %w", err)
+		}
+		if parent.ParentID.Valid {
+			return nil, fmt.Errorf("only one level of nesting is allowed")
+		}
+	}
+
+	row, err := r.TaskStore.CreateTask(ctx, taskConverter.ToCreateParams(input))
+	if err != nil {
+		return nil, fmt.Errorf("creating task: %w", err)
+	}
+	return taskConverter.FromDB(row), nil
 }
 
 // UpdateTask is the resolver for the updateTask field.
 func (r *mutationResolver) UpdateTask(ctx context.Context, id uuid.UUID, input model.UpdateTaskInput) (*model.Task, error) {
-	panic(fmt.Errorf("not implemented: UpdateTask - updateTask"))
+	if input.IsCompleted != nil {
+		if *input.IsCompleted {
+			return r.CompleteTask(ctx, id)
+		}
+		row, err := r.TaskStore.UncompleteTask(ctx, uuidToPgtype(id))
+		if err != nil {
+			return nil, fmt.Errorf("uncompleting task: %w", err)
+		}
+		return taskConverter.FromDB(row), nil
+	}
+
+	row, err := r.TaskStore.UpdateTask(ctx, taskConverter.ToUpdateParams(id, input))
+	if err != nil {
+		return nil, fmt.Errorf("updating task: %w", err)
+	}
+	return taskConverter.FromDB(row), nil
 }
 
 // DeleteTask is the resolver for the deleteTask field.
 func (r *mutationResolver) DeleteTask(ctx context.Context, id uuid.UUID) (bool, error) {
-	panic(fmt.Errorf("not implemented: DeleteTask - deleteTask"))
+	// Verify task exists
+	if _, err := r.TaskStore.GetTask(ctx, uuidToPgtype(id)); err != nil {
+		return false, fmt.Errorf("task not found: %w", err)
+	}
+	if err := r.TaskStore.DeleteTask(ctx, uuidToPgtype(id)); err != nil {
+		return false, fmt.Errorf("deleting task: %w", err)
+	}
+	return true, nil
 }
 
 // CompleteTask is the resolver for the completeTask field.
 func (r *mutationResolver) CompleteTask(ctx context.Context, id uuid.UUID) (*model.Task, error) {
-	panic(fmt.Errorf("not implemented: CompleteTask - completeTask"))
+	pgID := uuidToPgtype(id)
+	task, err := r.TaskStore.GetTask(ctx, pgID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching task: %w", err)
+	}
+
+	// Check if this is a parent task (has subtasks)
+	subtasks, err := r.TaskStore.ListSubtasks(ctx, pgID)
+	if err != nil {
+		return nil, fmt.Errorf("listing subtasks: %w", err)
+	}
+	if len(subtasks) > 0 {
+		return nil, fmt.Errorf("cannot complete parent task directly; complete all subtasks instead")
+	}
+
+	row, err := r.TaskStore.CompleteTask(ctx, pgID)
+	if err != nil {
+		return nil, fmt.Errorf("completing task: %w", err)
+	}
+
+	// If this is a subtask, check if all siblings are now complete
+	if task.ParentID.Valid {
+		count, err := r.TaskStore.CountIncompleteSubtasks(ctx, task.ParentID)
+		if err != nil {
+			return nil, fmt.Errorf("counting incomplete subtasks: %w", err)
+		}
+		if count == 0 {
+			if _, err := r.TaskStore.CompleteTask(ctx, task.ParentID); err != nil {
+				return nil, fmt.Errorf("auto-completing parent: %w", err)
+			}
+		}
+	}
+
+	return taskConverter.FromDB(row), nil
 }
 
 // CreateRoutine is the resolver for the createRoutine field.
@@ -123,12 +198,32 @@ func (r *mutationResolver) ResolveSkippedBlock(ctx context.Context, planID uuid.
 
 // Tasks is the resolver for the tasks field.
 func (r *queryResolver) Tasks(ctx context.Context, category *model.Category, includeCompleted *bool) ([]*model.Task, error) {
-	panic(fmt.Errorf("not implemented: Tasks - tasks"))
+	var catStr *string
+	if category != nil {
+		s := strings.ToLower(string(*category))
+		catStr = &s
+	}
+	rows, err := r.TaskStore.ListTasks(ctx, db.ListTasksParams{
+		Category:         catStr,
+		IncludeCompleted: includeCompleted,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("listing tasks: %w", err)
+	}
+	result := make([]*model.Task, len(rows))
+	for i, row := range rows {
+		result[i] = taskConverter.FromDB(row)
+	}
+	return result, nil
 }
 
 // Task is the resolver for the task field.
 func (r *queryResolver) Task(ctx context.Context, id uuid.UUID) (*model.Task, error) {
-	panic(fmt.Errorf("not implemented: Task - task"))
+	row, err := r.TaskStore.GetTask(ctx, uuidToPgtype(id))
+	if err != nil {
+		return nil, nil
+	}
+	return taskConverter.FromDB(row), nil
 }
 
 // Routines is the resolver for the routines field.
