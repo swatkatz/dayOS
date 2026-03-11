@@ -80,9 +80,9 @@ Use `/write-spec <context-name>` to generate a spec.
 
 **Wave 1 — Foundation**
 
-1. `specs/foundation.md` — DB migrations (7 total), Go module + gqlgen + sqlc setup
+1. `specs/foundation.md` — DB migrations (7 total), Go module + gqlgen + sqlc setup -- done!
 
-**Wave 2 — Backend Core** 2. `specs/tasks.md` — Task CRUD, parent/subtask hierarchy, completion, deferred tracking 3. `specs/routines.md` — Routine CRUD, day-of-week applicability -- done! 4. `specs/context.md` — Context entry CRUD, active/inactive toggle
+**Wave 2 — Backend Core** 2. `specs/tasks.md` — Task CRUD, parent/subtask hierarchy, completion, deferred tracking -- done! 3. `specs/routines.md` — Routine CRUD, day-of-week applicability -- done! 4. `specs/context.md` — Context entry CRUD, active/inactive toggle
 
 **Wave 3 — Plans + AI** 5. `specs/day-plans.md` — Plan storage, block skip/adjust, plan status (draft/accepted) 6. `specs/planner.md` — AI plan chat, task scoping chat, prompt construction, JSON parsing 7. `specs/carry-over.md` — Skipped task review, deferred counting, actual_minutes computation
 
