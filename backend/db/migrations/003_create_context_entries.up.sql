@@ -7,3 +7,5 @@ CREATE TABLE context_entries (
   created_at  TIMESTAMPTZ DEFAULT now(),
   updated_at  TIMESTAMPTZ DEFAULT now()
 );
+
+CREATE UNIQUE INDEX idx_context_entries_category_key ON context_entries(category, key);

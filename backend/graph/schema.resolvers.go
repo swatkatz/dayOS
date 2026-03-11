@@ -148,12 +148,34 @@ func (r *mutationResolver) DeleteRoutine(ctx context.Context, id uuid.UUID) (boo
 
 // UpsertContext is the resolver for the upsertContext field.
 func (r *mutationResolver) UpsertContext(ctx context.Context, input model.UpsertContextInput) (*model.ContextEntry, error) {
-	panic(fmt.Errorf("not implemented: UpsertContext - upsertContext"))
+	row, err := r.ContextStore.UpsertContextEntry(ctx, contextConverter.ToDB(input))
+	if err != nil {
+		return nil, fmt.Errorf("upserting context entry: %w", err)
+	}
+	return contextConverter.FromDB(row), nil
+}
+
+// ToggleContext is the resolver for the toggleContext field.
+func (r *mutationResolver) ToggleContext(ctx context.Context, id uuid.UUID, isActive bool) (*model.ContextEntry, error) {
+	row, err := r.ContextStore.ToggleContextEntry(ctx, db.ToggleContextEntryParams{
+		ID:       uuidToPgtype(id),
+		IsActive: &isActive,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("toggling context entry: %w", err)
+	}
+	return contextConverter.FromDB(row), nil
 }
 
 // DeleteContext is the resolver for the deleteContext field.
 func (r *mutationResolver) DeleteContext(ctx context.Context, id uuid.UUID) (bool, error) {
-	panic(fmt.Errorf("not implemented: DeleteContext - deleteContext"))
+	if _, err := r.ContextStore.GetContextEntry(ctx, uuidToPgtype(id)); err != nil {
+		return false, fmt.Errorf("context entry not found: %w", err)
+	}
+	if err := r.ContextStore.DeleteContextEntry(ctx, uuidToPgtype(id)); err != nil {
+		return false, fmt.Errorf("deleting context entry: %w", err)
+	}
+	return true, nil
 }
 
 // SendPlanMessage is the resolver for the sendPlanMessage field.
@@ -241,7 +263,20 @@ func (r *queryResolver) Routines(ctx context.Context, activeOnly *bool) ([]*mode
 
 // ContextEntries is the resolver for the contextEntries field.
 func (r *queryResolver) ContextEntries(ctx context.Context, category *model.ContextCategory) ([]*model.ContextEntry, error) {
-	panic(fmt.Errorf("not implemented: ContextEntries - contextEntries"))
+	var catStr *string
+	if category != nil {
+		s := strings.ToLower(string(*category))
+		catStr = &s
+	}
+	rows, err := r.ContextStore.ListContextEntries(ctx, catStr)
+	if err != nil {
+		return nil, fmt.Errorf("listing context entries: %w", err)
+	}
+	result := make([]*model.ContextEntry, len(rows))
+	for i, row := range rows {
+		result[i] = contextConverter.FromDB(row)
+	}
+	return result, nil
 }
 
 // DayPlan is the resolver for the dayPlan field.

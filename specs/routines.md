@@ -119,6 +119,29 @@ The `frequency` field combined with `days_of_week` determines which days a routi
 
 ## Behaviors (EARS syntax)
 
+### Input validation
+
+Input validation uses the `validate` package (see `specs/validation.md`). Converters call `validate.Validate()` before constructing DB params.
+
+- When `createRoutine` or `updateRoutine` is called, the system shall validate `title` with rule `SingleLine` and `notes` with rule `PlainText`.
+- When validation fails, the system shall return the validation error without writing to the database.
+
+### GraphQL directive annotations
+
+```graphql
+input CreateRoutineInput {
+  title: String!  @validate(rule: SINGLE_LINE)  @prompt(role: CONTEXT_DATA)
+  notes: String   @validate(rule: PLAIN_TEXT)    @prompt(role: CONTEXT_DATA)
+}
+
+input UpdateRoutineInput {
+  title: String   @validate(rule: SINGLE_LINE)  @prompt(role: CONTEXT_DATA)
+  notes: String   @validate(rule: PLAIN_TEXT)    @prompt(role: CONTEXT_DATA)
+}
+```
+
+### Frequency validation
+
 - When `createRoutine` is called with `frequency = WEEKLY` or `CUSTOM` and `daysOfWeek` is empty or null, the system shall return a validation error.
 - When `createRoutine` is called with `frequency = DAILY` or `WEEKDAYS`, the system shall ignore any provided `daysOfWeek` value (store it but don't require it).
 - When `routines(activeOnly: true)` is called, the system shall return only routines where `is_active = true`.
@@ -138,3 +161,7 @@ The `frequency` field combined with `days_of_week` determines which days a routi
 4. Given today is Wednesday (day=3) and routines exist with frequencies `daily`, `weekdays`, and `custom(days=[0,6])`, when `ListRoutinesForDay(3)` is called, then the `daily` and `weekdays` routines are returned but not the weekend-only custom routine.
 
 5. Given a routine linked to 2 tasks exists, when `deleteRoutine` is called, then the routine is deleted and both tasks still exist with `routine_id = NULL`.
+
+6. Given no routines exist, when `createRoutine({title: "a" repeated 300 times, ...})` is called (title > 255 chars), then a validation error is returned.
+
+7. Given no routines exist, when `createRoutine({title: "Morning\nexercise", ...})` is called, then the routine is created with title `"Morningexercise"` (newlines stripped).

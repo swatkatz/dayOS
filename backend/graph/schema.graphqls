@@ -231,6 +231,7 @@ type Mutation {
 
   # Context
   upsertContext(input: UpsertContextInput!): ContextEntry!
+  toggleContext(id: UUID!, isActive: Boolean!): ContextEntry!
   deleteContext(id: UUID!): Boolean!
 
   # Plan chat

@@ -70,6 +70,7 @@ type ComplexityRoot struct {
 		SendTaskMessage       func(childComplexity int, conversationID uuid.UUID, message string) int
 		SkipBlock             func(childComplexity int, planID uuid.UUID, blockID string) int
 		StartTaskConversation func(childComplexity int, message string) int
+		ToggleContext         func(childComplexity int, id uuid.UUID, isActive bool) int
 		UpdateBlock           func(childComplexity int, planID uuid.UUID, blockID string, input model.UpdateBlockInput) int
 		UpdateRoutine         func(childComplexity int, id uuid.UUID, input model.UpdateRoutineInput) int
 		UpdateTask            func(childComplexity int, id uuid.UUID, input model.UpdateTaskInput) int
@@ -165,6 +166,7 @@ type MutationResolver interface {
 	UpdateRoutine(ctx context.Context, id uuid.UUID, input model.UpdateRoutineInput) (*model.Routine, error)
 	DeleteRoutine(ctx context.Context, id uuid.UUID) (bool, error)
 	UpsertContext(ctx context.Context, input model.UpsertContextInput) (*model.ContextEntry, error)
+	ToggleContext(ctx context.Context, id uuid.UUID, isActive bool) (*model.ContextEntry, error)
 	DeleteContext(ctx context.Context, id uuid.UUID) (bool, error)
 	SendPlanMessage(ctx context.Context, date model.Date, message string) (*model.DayPlan, error)
 	AcceptPlan(ctx context.Context, date model.Date) (*model.DayPlan, error)
@@ -422,6 +424,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.StartTaskConversation(childComplexity, args["message"].(string)), true
+	case "Mutation.toggleContext":
+		if e.ComplexityRoot.Mutation.ToggleContext == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_toggleContext_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ToggleContext(childComplexity, args["id"].(uuid.UUID), args["isActive"].(bool)), true
 	case "Mutation.updateBlock":
 		if e.ComplexityRoot.Mutation.UpdateBlock == nil {
 			break
@@ -1131,6 +1144,22 @@ func (ec *executionContext) field_Mutation_startTaskConversation_args(ctx contex
 		return nil, err
 	}
 	args["message"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_toggleContext_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "isActive", ec.unmarshalNBoolean2bool)
+	if err != nil {
+		return nil, err
+	}
+	args["isActive"] = arg1
 	return args, nil
 }
 
@@ -2252,6 +2281,61 @@ func (ec *executionContext) fieldContext_Mutation_upsertContext(ctx context.Cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_upsertContext_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_toggleContext(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_toggleContext,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ToggleContext(ctx, fc.Args["id"].(uuid.UUID), fc.Args["isActive"].(bool))
+		},
+		nil,
+		ec.marshalNContextEntry2ᚖdayosᚋgraphᚋmodelᚐContextEntry,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_toggleContext(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_ContextEntry_id(ctx, field)
+			case "category":
+				return ec.fieldContext_ContextEntry_category(ctx, field)
+			case "key":
+				return ec.fieldContext_ContextEntry_key(ctx, field)
+			case "value":
+				return ec.fieldContext_ContextEntry_value(ctx, field)
+			case "isActive":
+				return ec.fieldContext_ContextEntry_isActive(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_ContextEntry_createdAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ContextEntry", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_toggleContext_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -6973,6 +7057,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "upsertContext":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_upsertContext(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "toggleContext":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_toggleContext(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

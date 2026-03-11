@@ -3,6 +3,7 @@ package graph_test
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 
 	"dayos/db"
@@ -319,6 +320,111 @@ func (m *mockTaskStore) CountIncompleteSubtasks(_ context.Context, parentID pgty
 	return count, nil
 }
 
+// --- Mock ContextStore ---
+
+type mockContextStore struct {
+	mu      sync.Mutex
+	entries map[pgtype.UUID]db.ContextEntry
+	order   []pgtype.UUID
+}
+
+func newMockContextStore() *mockContextStore {
+	return &mockContextStore{
+		entries: make(map[pgtype.UUID]db.ContextEntry),
+	}
+}
+
+func (m *mockContextStore) ListContextEntries(_ context.Context, category *string) ([]db.ContextEntry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var result []db.ContextEntry
+	for _, id := range m.order {
+		e := m.entries[id]
+		if category != nil && e.Category != *category {
+			continue
+		}
+		result = append(result, e)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Category != result[j].Category {
+			return result[i].Category < result[j].Category
+		}
+		return result[i].Key < result[j].Key
+	})
+	return result, nil
+}
+
+func (m *mockContextStore) GetContextEntry(_ context.Context, id pgtype.UUID) (db.ContextEntry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	e, ok := m.entries[id]
+	if !ok {
+		return db.ContextEntry{}, fmt.Errorf("no rows in result set")
+	}
+	return e, nil
+}
+
+func (m *mockContextStore) UpsertContextEntry(_ context.Context, arg db.UpsertContextEntryParams) (db.ContextEntry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check for existing entry with same category+key (upsert behavior)
+	for _, id := range m.order {
+		e := m.entries[id]
+		if e.Category == arg.Category && e.Key == arg.Key {
+			e.Value = arg.Value
+			m.entries[id] = e
+			return e, nil
+		}
+	}
+
+	// Insert new
+	id := pgtype.UUID{Bytes: uuid.New(), Valid: true}
+	active := true
+	e := db.ContextEntry{
+		ID:       id,
+		Category: arg.Category,
+		Key:      arg.Key,
+		Value:    arg.Value,
+		IsActive: &active,
+	}
+	m.entries[id] = e
+	m.order = append(m.order, id)
+	return e, nil
+}
+
+func (m *mockContextStore) ToggleContextEntry(_ context.Context, arg db.ToggleContextEntryParams) (db.ContextEntry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	e, ok := m.entries[arg.ID]
+	if !ok {
+		return db.ContextEntry{}, fmt.Errorf("no rows in result set")
+	}
+	e.IsActive = arg.IsActive
+	m.entries[arg.ID] = e
+	return e, nil
+}
+
+func (m *mockContextStore) DeleteContextEntry(_ context.Context, id pgtype.UUID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.entries[id]; !ok {
+		return fmt.Errorf("no rows in result set")
+	}
+	delete(m.entries, id)
+	for i, oid := range m.order {
+		if oid == id {
+			m.order = append(m.order[:i], m.order[i+1:]...)
+			break
+		}
+	}
+	return nil
+}
+
 // --- Factories ---
 
 func factoryRoutine(store *mockRoutineStore, title string, overrides ...func(*db.UpsertRoutineParams)) db.Routine {
@@ -335,6 +441,30 @@ func factoryRoutine(store *mockRoutineStore, title string, overrides ...func(*db
 		panic(fmt.Sprintf("factoryRoutine: %v", err))
 	}
 	return r
+}
+
+func factoryContextEntry(store *mockContextStore, category, key, value string) db.ContextEntry {
+	e, err := store.UpsertContextEntry(context.Background(), db.UpsertContextEntryParams{
+		Category: category,
+		Key:      key,
+		Value:    value,
+	})
+	if err != nil {
+		panic(fmt.Sprintf("factoryContextEntry: %v", err))
+	}
+	return e
+}
+
+func seedContextEntries(store *mockContextStore) {
+	factoryContextEntry(store, "life", "baby", "6-month-old daughter.")
+	factoryContextEntry(store, "life", "family", "Partner Elijah.")
+	factoryContextEntry(store, "constraints", "work_window", "Deep focus work: 9am-4pm only.")
+	factoryContextEntry(store, "constraints", "location", "Toronto, Canada.")
+	factoryContextEntry(store, "constraints", "energy", "Cap deep cognitive work at 5h/day max.")
+	factoryContextEntry(store, "constraints", "dinner_prep", "Dinner is always prepped after 16:00.")
+	factoryContextEntry(store, "constraints", "evening_window", "Light evening window ~20:00-22:00.")
+	factoryContextEntry(store, "equipment", "kitchen", "Full Indian kitchen setup.")
+	factoryContextEntry(store, "preferences", "planning_style", "Time-blocked days.")
 }
 
 func factoryTask(store *mockTaskStore, title string, overrides ...func(*db.CreateTaskParams)) db.Task {

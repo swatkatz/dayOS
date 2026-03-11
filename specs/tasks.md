@@ -144,6 +144,28 @@ Note: `IncrementTimesDeferred` and `UpdateActualMinutes` are defined here (they 
 
 ## Behaviors (EARS syntax)
 
+### Input validation
+
+Input validation uses the `validate` package (see `specs/validation.md`). Converters call `validate.Validate()` before constructing DB params.
+
+- When `createTask` or `updateTask` is called, the system shall validate `title` with rule `SingleLine` and `notes` with rule `PlainText`.
+- When validation fails, the system shall return the validation error without writing to the database.
+
+### GraphQL directive annotations
+
+```graphql
+input CreateTaskInput {
+  title: String!  @validate(rule: SINGLE_LINE)  @prompt(role: CONTEXT_DATA)
+  notes: String   @validate(rule: PLAIN_TEXT)    @prompt(role: CONTEXT_DATA)
+  # remaining fields: enums, ints, UUIDs — no validation directives needed
+}
+
+input UpdateTaskInput {
+  title: String   @validate(rule: SINGLE_LINE)  @prompt(role: CONTEXT_DATA)
+  notes: String   @validate(rule: PLAIN_TEXT)    @prompt(role: CONTEXT_DATA)
+}
+```
+
 ### Creation
 
 - When `createTask` is called without `estimatedMinutes` and the task is standalone (no `parentId`) or a subtask, the system shall default `estimatedMinutes` to 60.
@@ -202,3 +224,7 @@ Note: `IncrementTimesDeferred` and `UpdateActualMinutes` are defined here (they 
 6. Given no tasks exist, when `createTask({..., deadlineType: HARD, deadlineDate: null})` is called, then a validation error is returned.
 
 7. Given a subtask exists under a parent, when `createTask({..., parentId: subtaskId})` is called (nesting), then an error is returned.
+
+8. Given no tasks exist, when `createTask({title: "a]repeated 300 times", ...})` is called (title > 255 chars), then a validation error is returned.
+
+9. Given no tasks exist, when `createTask({title: "Test\ninjection\nattempt", ...})` is called, then the task is created with title `"Testinjectionattempt"` (newlines stripped).

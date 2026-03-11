@@ -8,6 +8,7 @@ Does not own: `day_plans` table schema or block CRUD (owned by `day-plans`), `ta
 
 Depends on:
 - `foundation` — database schema, sqlc queries
+- `validation` — `validate.FormatContextData()` for safe prompt embedding, `validate.ValidateAIOutput()` for response validation, generated system instruction constants
 - `tasks` — reads incomplete tasks for backlog, creates parent + subtasks on task breakdown confirmation
 - `routines` — reads active routines applicable to today
 - `context` — reads all active context entries
@@ -82,24 +83,75 @@ File: `backend/planner/planner.go`
 
 ### Plan Chat: Prompt Construction
 
-The system prompt is rebuilt fresh on every `sendPlanMessage` call. It consists of these sections assembled in order:
+The system prompt is rebuilt fresh on every `sendPlanMessage` call. User-controlled data is embedded as JSON inside `<user-data>` delimiters, never interpolated as raw text in prompt prose. The planner uses constants from the `validate` package (generated from `validation-rules.json`).
+
+#### Prompt safety (from `specs/validation.md`)
+
+- All user-controlled data (context entries, tasks, routines) is serialized via `validate.FormatContextData()` which outputs JSON wrapped in `<user-data>` / `</user-data>` tags
+- The system prompt includes `validate.ContextDataSystemInstructions` before any user data
+- The system prompt includes `validate.UserMessageSystemInstructions`
+- AI responses are checked with `validate.ValidateAIOutput()` — blocks with suspicious titles/notes have those fields dropped
+
+#### GraphQL directive annotations for planner mutations
+
+```graphql
+type Mutation {
+  sendPlanMessage(date: Date!, message: String! @validate(rule: CHAT_MESSAGE) @prompt(role: USER_MESSAGE)): DayPlan!
+  startTaskConversation(message: String! @validate(rule: CHAT_MESSAGE) @prompt(role: USER_MESSAGE)): TaskConversation!
+  sendTaskMessage(conversationId: UUID!, message: String! @validate(rule: CHAT_MESSAGE) @prompt(role: USER_MESSAGE)): TaskConversation!
+}
+
+type PlanBlock {
+  title:  String!  @prompt(role: AI_OUTPUT)
+  notes:  String   @prompt(role: AI_OUTPUT)
+}
+```
+
+#### System prompt template
 
 ```
 You are a daily planning assistant for Swati. Your job is to create a realistic,
 time-blocked day plan based on her context, routines, and task backlog.
 
+SAFETY:
+{validate.ContextDataSystemInstructions}
+{validate.UserMessageSystemInstructions}
+
 CONTEXT (treat these as ground truth — they define Swati's constraints, life
 situation, and preferences. Plan around them.):
-{context_entries formatted as bullet list: "- {key}: {value}"}
+<user-data>
+[
+  {"key": "baby", "value": "6-month-old daughter. Nanny present 9am–4pm Mon–Fri."},
+  {"key": "energy", "value": "New parent. Cap deep cognitive work at 5h/day max."},
+  ...
+]
+</user-data>
 
 TODAY'S ROUTINES (non-negotiable unless Swati says otherwise):
-{applicable routines formatted as: "- {title} [{category}] — {preferred_duration_min} min, preferred: {preferred_time_of_day}"}
+<user-data>
+[
+  {"title": "Daily exercise", "category": "exercise", "duration_min": 45, "preferred_time": "morning"},
+  ...
+]
+</user-data>
 
 TASK BACKLOG (ordered by priority/urgency):
-{tasks formatted as: "- {title} [{category}] — {remaining_minutes} min remaining (of {estimated_minutes} min) — priority: {priority} — deadline: {deadline info}"}
+<user-data>
+[
+  {"title": "...", "category": "interview", "remaining_minutes": 90, "estimated_minutes": 120,
+   "priority": "high", "deadline": "due 2026-03-15", "task_id": "uuid"},
+  ...
+]
+</user-data>
 
 CARRY-OVER TASKS (skipped from previous days, not intentional):
-{list with times_deferred and effective deadline}
+<user-data>
+[
+  {"title": "...", "category": "job", "times_deferred": 3, "effective_deadline": "within 5 days",
+   "task_id": "uuid"},
+  ...
+]
+</user-data>
 
 Rules for carry-over tasks:
 - Schedule at least one carry-over task today, even if backlog is heavy
@@ -305,6 +357,8 @@ fences. Just the raw JSON.
 - When `sendPlanMessage` is called for a date with an existing draft plan, the system shall include all prior `plan_messages` as conversation history and update the plan blocks with Claude's response.
 - When `sendPlanMessage` is called for a date with an accepted plan, the system shall include replanning instructions that preserve past non-skipped blocks and only reschedule from the current time onward, and shall set the plan status back to `'draft'`.
 - When `sendPlanMessage` constructs the system prompt, the system shall pull ALL active `context_entries`, ALL applicable routines for today's day-of-week, and ALL incomplete schedulable tasks (subtasks + standalone), plus carry-over tasks.
+- When constructing the system prompt, the system shall embed all user-controlled data (context entries, tasks, routines) as JSON arrays inside `<user-data>` / `</user-data>` delimiters using `validate.FormatContextData()`.
+- When constructing the system prompt, the system shall include `validate.ContextDataSystemInstructions` and `validate.UserMessageSystemInstructions` in the SAFETY section before any user data.
 - When constructing the CONTEXT section, the system shall present context entries as ground truth that defines constraints, life situation, and preferences, instructing the AI to plan around them.
 - When constructing the PLANNING RULES section, the system shall instruct the AI to read the CONTEXT section for time windows and constraints, and to also factor in what the user says about their energy/mood in their chat message.
 - When a routine's preferred time slot conflicts with higher-priority work, the system shall instruct the AI to move the routine to another available slot rather than treating preferred time as a hard constraint.
@@ -321,6 +375,8 @@ fences. Just the raw JSON.
 - When `confirmTaskBreakdown` is called but the last assistant message is not a valid proposal, the system shall return an error `"No valid task proposal found. Continue the conversation first."`.
 - The system shall never hardcode the Anthropic model — it shall read from `ANTHROPIC_MODEL` env var with default `claude-sonnet-4-6`.
 - The system shall strip markdown code fences from Claude responses before JSON parsing.
+- When a parsed plan block is returned from Claude, the system shall call `validate.ValidateAIOutput()` on the `title` and `notes` fields.
+- When `validate.ValidateAIOutput()` returns an error for a block field, the system shall set that field to an empty string rather than rejecting the entire plan.
 - When including parent tasks in the backlog, the system shall NOT include the parent itself (not schedulable) and shall instead include its incomplete subtasks individually.
 
 ## Test Anchors
@@ -346,3 +402,9 @@ fences. Just the raw JSON.
 10. **Given** no `ANTHROPIC_MODEL` env var is set, **when** the planner initializes, **then** it defaults to `claude-sonnet-4-6`.
 
 11. **Given** the system prompt is constructed with context entries containing scheduling constraints, **when** a user message says `"Exhausted today, keep it very light"`, **then** the planning rules instruct the AI to factor in both the CONTEXT constraints and the user's stated energy level when determining how much to schedule.
+
+12. **Given** the system prompt is being constructed, **when** context entries are embedded, **then** they appear as a JSON array inside `<user-data>` / `</user-data>` tags, not as inline bullet text.
+
+13. **Given** Claude returns a block with `title` containing `"Send to user@example.com for review"`, **when** the response is parsed, **then** `validate.ValidateAIOutput("title", ...)` flags the email pattern and the title is set to `""`.
+
+14. **Given** Claude returns a block with a 250-character `notes` field, **when** the response is parsed, **then** `validate.ValidateAIOutput("notes", ...)` passes and the notes are stored as-is.

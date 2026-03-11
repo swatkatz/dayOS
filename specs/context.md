@@ -82,6 +82,25 @@ CREATE UNIQUE INDEX idx_context_entries_category_key ON context_entries(category
 
 ## Behaviors (EARS syntax)
 
+### Input validation
+
+Input validation uses the `validate` package (see `specs/validation.md`). Converters call `validate.Validate()` before constructing DB params.
+
+- When `upsertContext` is called, the system shall validate `key` with rule `SingleLineShort` and `value` with rule `PlainText`.
+- When validation fails, the system shall return the validation error without writing to the database.
+
+### GraphQL directive annotations
+
+```graphql
+input UpsertContextInput {
+  category: ContextCategory!
+  key:      String!  @validate(rule: SINGLE_LINE_SHORT)  @prompt(role: CONTEXT_DATA)
+  value:    String!  @validate(rule: PLAIN_TEXT)          @prompt(role: CONTEXT_DATA)
+}
+```
+
+### Upsert behavior
+
 - When `upsertContext` is called with a `category`+`key` that already exists, the system shall update the `value` and `updated_at` (not create a duplicate).
 - When `upsertContext` is called with a new `category`+`key`, the system shall insert a new entry with `isActive = true`.
 - When `contextEntries(category: CONSTRAINTS)` is called, the system shall return only entries in the `constraints` category.
@@ -111,3 +130,9 @@ toggleContext(id: UUID!, isActive: Boolean!): ContextEntry!
 4. Given an active context entry exists, when `toggleContext(id, false)` is called, then the entry's `isActive` is false. When `ListActiveContextEntries` is queried, it is excluded.
 
 5. Given a context entry exists, when `deleteContext(id)` is called, then the entry is permanently removed and subsequent queries do not return it.
+
+6. Given a key of 101 characters, when `upsertContext({category: CONSTRAINTS, key: longKey, value: "test"})` is called, then a validation error `"key must be 100 characters or fewer"` is returned.
+
+7. Given a key `"work\nwindow"`, when `upsertContext({category: CONSTRAINTS, key: "work\nwindow", value: "9-5"})` is called, then the entry is created with key `"workwindow"` (newline stripped).
+
+8. Given a value of 1001 characters, when `upsertContext({category: CONSTRAINTS, key: "test", value: longValue})` is called, then a validation error is returned.

@@ -2,11 +2,11 @@
 
 ## Bounded Context
 
-Owns: Railway configuration (`railway.toml`), embedded frontend serving via `//go:embed`, auth middleware (validates `APP_SECRET` on every GraphQL request), environment variable handling (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `APP_SECRET`), production build pipeline (`make build`), CORS configuration
+Owns: Railway configuration (`railway.toml`), embedded frontend serving via `//go:embed`, environment variable handling (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`), production build pipeline (`make build`), CORS configuration
 
-Does not own: Database migrations (owned by `foundation`), frontend build tooling (owned by `frontend-shell`), GraphQL resolvers (owned by backend specs), `main.go` server setup (owned by `foundation` — this spec **extends** it)
+Does not own: Database migrations (owned by `foundation`), frontend build tooling (owned by `frontend-shell`), GraphQL resolvers (owned by backend specs), `main.go` server setup (owned by `foundation` — this spec **extends** it), auth middleware and `APP_SECRET` handling (owned by `auth`)
 
-Depends on: `foundation` (main.go entry point, migration runner, GraphQL handler), `frontend-shell` (Vite build output at `frontend/dist/`)
+Depends on: `foundation` (main.go entry point, migration runner, GraphQL handler), `auth` (middleware for protecting GraphQL endpoint), `frontend-shell` (Vite build output at `frontend/dist/`)
 
 Produces: Single deployable Go binary with embedded frontend, Railway service configuration, auth middleware that protects all GraphQL requests
 
@@ -38,18 +38,7 @@ SPA fallback: if the requested file doesn't exist in the embedded FS, serve `ind
 
 ### Auth Middleware
 
-Middleware wraps the `/graphql` handler. Does NOT apply to static file serving (the frontend itself is public; data access is protected).
-
-```
-Request flow:
-  1. Extract `Authorization` header
-  2. Expect format: `Bearer {token}`
-  3. Compare token to APP_SECRET env var (constant-time comparison)
-  4. If match → proceed to GraphQL handler
-  5. If no match or missing → return 401 Unauthorized
-```
-
-Use `crypto/subtle.ConstantTimeCompare` for the token comparison.
+Auth middleware is owned by `specs/auth.md`. The deployment spec wires it into the route setup. See the auth spec for request flow, Playground protection, and introspection protection.
 
 ### Environment Variables
 
@@ -59,7 +48,7 @@ Use `crypto/subtle.ConstantTimeCompare` for the token comparison.
 | `PORT` | No | `8080` | HTTP server port (Railway sets this) |
 | `ANTHROPIC_API_KEY` | Yes | — | Claude API key |
 | `ANTHROPIC_MODEL` | No | `claude-sonnet-4-6` | Model ID for planner |
-| `APP_SECRET` | Yes | — | Shared secret for auth |
+| `APP_SECRET` | Yes | — | Shared secret for auth (see `specs/auth.md`) |
 
 On startup, if any required env var is missing, the system shall log which variable is missing and exit with status 1.
 
@@ -112,11 +101,7 @@ build:
 
 ### Auth
 
-- When a GraphQL request arrives without an `Authorization` header, the system shall respond with HTTP 401 and body `{"error": "unauthorized"}`.
-- When a GraphQL request arrives with an `Authorization` header whose Bearer token does not match `APP_SECRET`, the system shall respond with HTTP 401 and body `{"error": "unauthorized"}`.
-- When a GraphQL request arrives with `Authorization: Bearer {token}` where `{token}` matches `APP_SECRET`, the system shall pass the request to the GraphQL handler.
-- The system shall use constant-time comparison for token validation to prevent timing attacks.
-- When `APP_SECRET` is not set, the system shall exit on startup with a message: `"APP_SECRET environment variable is required"`.
+Auth behaviors are owned by `specs/auth.md`. See that spec for middleware behavior, Playground/introspection protection, and startup validation.
 
 ### Embedded Frontend
 
@@ -148,18 +133,12 @@ build:
 
 ## Test Anchors
 
-1. Given `APP_SECRET` is set to `"test-secret"`, when a POST to `/graphql` is made with `Authorization: Bearer test-secret`, then the request is forwarded to the GraphQL handler and returns a 200 response.
+1. Given the embedded frontend FS contains `index.html` and `assets/main.js`, when a GET to `/assets/main.js` is made, then the file is served with content type `application/javascript`.
 
-2. Given `APP_SECRET` is set to `"test-secret"`, when a POST to `/graphql` is made with `Authorization: Bearer wrong-secret`, then the response is HTTP 401 with body `{"error": "unauthorized"}`.
+2. Given the embedded frontend FS contains `index.html`, when a GET to `/backlog` is made (no matching file), then `index.html` is served (SPA fallback).
 
-3. Given `APP_SECRET` is set to `"test-secret"`, when a POST to `/graphql` is made with no `Authorization` header, then the response is HTTP 401.
+3. Given `ANTHROPIC_API_KEY` is not set in the environment, when the application starts, then it exits with status 1 and logs a message containing `"ANTHROPIC_API_KEY"`.
 
-4. Given the embedded frontend FS contains `index.html` and `assets/main.js`, when a GET to `/assets/main.js` is made, then the file is served with content type `application/javascript`.
+4. Given the app is deployed to Railway with all env vars set, when a browser navigates to the root URL, then `index.html` is served and the frontend app loads.
 
-5. Given the embedded frontend FS contains `index.html`, when a GET to `/backlog` is made (no matching file), then `index.html` is served (SPA fallback).
-
-6. Given `ANTHROPIC_API_KEY` is not set in the environment, when the application starts, then it exits with status 1 and logs a message containing `"ANTHROPIC_API_KEY"`.
-
-7. Given `APP_SECRET` is not set in the environment, when the application starts, then it exits with status 1 and logs a message containing `"APP_SECRET"`.
-
-8. Given the app is deployed to Railway with all env vars set, when a browser navigates to the root URL, then `index.html` is served and the frontend app loads.
+Auth-related test anchors are in `specs/auth.md`.
