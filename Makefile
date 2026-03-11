@@ -1,4 +1,4 @@
-.PHONY: dev generate migrate build
+.PHONY: dev generate migrate build lint
 
 dev:
 	cd backend && go run ./main.go
@@ -13,3 +13,6 @@ migrate:
 build:
 	cd frontend && npm run build
 	cd backend && go build -o dayos ./main.go
+
+lint:
+	cd backend && golangci-lint run ./...

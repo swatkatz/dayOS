@@ -15,7 +15,7 @@ type Date struct {
 
 func MarshalDate(t Date) graphql.Marshaler {
 	return graphql.WriterFunc(func(w io.Writer) {
-		io.WriteString(w, strconv.Quote(t.Format("2006-01-02")))
+		_, _ = io.WriteString(w, strconv.Quote(t.Format("2006-01-02")))
 	})
 }
 
@@ -38,7 +38,7 @@ type DateTime struct {
 
 func MarshalDateTime(t DateTime) graphql.Marshaler {
 	return graphql.WriterFunc(func(w io.Writer) {
-		io.WriteString(w, strconv.Quote(t.Format(time.RFC3339)))
+		_, _ = io.WriteString(w, strconv.Quote(t.Format(time.RFC3339)))
 	})
 }
 

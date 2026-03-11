@@ -13,7 +13,7 @@ type ContextEntry struct {
 	Category  string             `json:"category"`
 	Key       string             `json:"key"`
 	Value     string             `json:"value"`
-	IsActive  pgtype.Bool        `json:"is_active"`
+	IsActive  *bool              `json:"is_active"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
@@ -41,10 +41,10 @@ type Routine struct {
 	Category             string             `json:"category"`
 	Frequency            string             `json:"frequency"`
 	DaysOfWeek           []int32            `json:"days_of_week"`
-	PreferredTimeOfDay   pgtype.Text        `json:"preferred_time_of_day"`
-	PreferredDurationMin pgtype.Int4        `json:"preferred_duration_min"`
-	Notes                pgtype.Text        `json:"notes"`
-	IsActive             pgtype.Bool        `json:"is_active"`
+	PreferredTimeOfDay   *string            `json:"preferred_time_of_day"`
+	PreferredDurationMin *int32             `json:"preferred_duration_min"`
+	Notes                *string            `json:"notes"`
+	IsActive             *bool              `json:"is_active"`
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 }
 
@@ -54,17 +54,17 @@ type Task struct {
 	Category         string             `json:"category"`
 	Priority         string             `json:"priority"`
 	ParentID         pgtype.UUID        `json:"parent_id"`
-	EstimatedMinutes pgtype.Int4        `json:"estimated_minutes"`
-	ActualMinutes    pgtype.Int4        `json:"actual_minutes"`
-	DeadlineType     pgtype.Text        `json:"deadline_type"`
+	EstimatedMinutes *int32             `json:"estimated_minutes"`
+	ActualMinutes    *int32             `json:"actual_minutes"`
+	DeadlineType     *string            `json:"deadline_type"`
 	DeadlineDate     pgtype.Date        `json:"deadline_date"`
-	DeadlineDays     pgtype.Int4        `json:"deadline_days"`
-	Notes            pgtype.Text        `json:"notes"`
-	IsRoutine        pgtype.Bool        `json:"is_routine"`
+	DeadlineDays     *int32             `json:"deadline_days"`
+	Notes            *string            `json:"notes"`
+	IsRoutine        *bool              `json:"is_routine"`
 	RoutineID        pgtype.UUID        `json:"routine_id"`
-	TimesDeferred    pgtype.Int4        `json:"times_deferred"`
+	TimesDeferred    *int32             `json:"times_deferred"`
 	LastDeferredAt   pgtype.Timestamptz `json:"last_deferred_at"`
-	IsCompleted      pgtype.Bool        `json:"is_completed"`
+	IsCompleted      *bool              `json:"is_completed"`
 	CompletedAt      pgtype.Timestamptz `json:"completed_at"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`

@@ -36,7 +36,11 @@ dayos/
 ├── backend/
 │   ├── graph/
 │   │   ├── schema.graphqls
-│   │   ├── resolver.go
+│   │   ├── resolver.go          # Resolver struct with per-context store interfaces
+│   │   ├── stores.go            # Store interfaces (RoutineStore, TaskStore, etc.)
+│   │   ├── {context}_convert.go # Per-context converter: FromDB, ToDB, MergeParams
+│   │   ├── schema.resolvers.go  # Resolver implementations (generated scaffold)
+│   │   ├── testutil_test.go     # Mock stores + factories for tests
 │   │   └── model/
 │   ├── db/
 │   │   ├── migrations/

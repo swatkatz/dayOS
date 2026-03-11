@@ -105,13 +105,13 @@ func TestAllTablesAcceptInserts(t *testing.T) {
 	}
 
 	// Cleanup test-inserted rows (leave seed data intact)
-	pool.Exec(ctx, "DELETE FROM task_messages WHERE content = 'hello'")
-	pool.Exec(ctx, "DELETE FROM task_conversations")
-	pool.Exec(ctx, "DELETE FROM plan_messages WHERE content = 'hello'")
-	pool.Exec(ctx, "DELETE FROM day_plans WHERE plan_date = '2099-01-01'")
-	pool.Exec(ctx, "DELETE FROM tasks WHERE title = 'Buy groceries'")
-	pool.Exec(ctx, "DELETE FROM routines WHERE title = 'Morning run'")
-	pool.Exec(ctx, "DELETE FROM context_entries WHERE key = 'test_key'")
+	_, _ = pool.Exec(ctx, "DELETE FROM task_messages WHERE content = 'hello'")
+	_, _ = pool.Exec(ctx, "DELETE FROM task_conversations")
+	_, _ = pool.Exec(ctx, "DELETE FROM plan_messages WHERE content = 'hello'")
+	_, _ = pool.Exec(ctx, "DELETE FROM day_plans WHERE plan_date = '2099-01-01'")
+	_, _ = pool.Exec(ctx, "DELETE FROM tasks WHERE title = 'Buy groceries'")
+	_, _ = pool.Exec(ctx, "DELETE FROM routines WHERE title = 'Morning run'")
+	_, _ = pool.Exec(ctx, "DELETE FROM context_entries WHERE key = 'test_key'")
 }
 
 func TestSeedContextEntries(t *testing.T) {
@@ -180,7 +180,9 @@ func TestCascadeDeleteParentTask(t *testing.T) {
 
 	// Verify subtasks exist
 	var count int
-	pool.QueryRow(ctx, "SELECT count(*) FROM tasks WHERE parent_id = $1", parentID).Scan(&count)
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM tasks WHERE parent_id = $1", parentID).Scan(&count); err != nil {
+		t.Fatalf("counting subtasks: %v", err)
+	}
 	if count != 3 {
 		t.Fatalf("expected 3 subtasks, got %d", count)
 	}
@@ -192,7 +194,9 @@ func TestCascadeDeleteParentTask(t *testing.T) {
 	}
 
 	// Verify subtasks are gone
-	pool.QueryRow(ctx, "SELECT count(*) FROM tasks WHERE parent_id = $1", parentID).Scan(&count)
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM tasks WHERE parent_id = $1", parentID).Scan(&count); err != nil {
+		t.Fatalf("counting subtasks after delete: %v", err)
+	}
 	if count != 0 {
 		t.Fatalf("expected 0 subtasks after cascade delete, got %d", count)
 	}
@@ -232,7 +236,7 @@ func TestSetNullOnRoutineDelete(t *testing.T) {
 	}
 
 	// Cleanup
-	pool.Exec(ctx, "DELETE FROM tasks WHERE id = $1", taskID)
+	_, _ = pool.Exec(ctx, "DELETE FROM tasks WHERE id = $1", taskID)
 }
 
 func TestUniquePlanDate(t *testing.T) {
@@ -249,5 +253,5 @@ func TestUniquePlanDate(t *testing.T) {
 	}
 
 	// Cleanup
-	pool.Exec(ctx, "DELETE FROM day_plans WHERE plan_date = '2026-03-05'")
+	_, _ = pool.Exec(ctx, "DELETE FROM day_plans WHERE plan_date = '2026-03-05'")
 }

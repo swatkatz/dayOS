@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 
+	"dayos/db"
 	"dayos/graph"
 
 	"github.com/99designs/gqlgen/graphql/handler"
@@ -44,9 +45,12 @@ func main() {
 	}
 	defer pool.Close()
 
-	// Initialize GraphQL server
+	// Initialize sqlc queries and GraphQL server
+	queries := db.New(pool)
 	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{
-		Resolvers: &graph.Resolver{Pool: pool},
+		Resolvers: &graph.Resolver{
+			RoutineStore: queries,
+		},
 	}))
 
 	http.Handle("/", playground.Handler("DayOS", "/graphql"))

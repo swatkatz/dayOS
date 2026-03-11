@@ -1,0 +1,28 @@
+version: "2"
+
+linters:
+  enable:
+    - depguard
+  settings:
+    depguard:
+      rules:
+        main:
+          allow:
+            - $gostd
+            - dayos
+            - github.com/99designs/gqlgen
+            - github.com/google/uuid
+            - github.com/golang-migrate/migrate/v4
+            - github.com/jackc/pgx/v5
+            - github.com/ory/dockertest/v3
+            - github.com/vektah/gqlparser/v2
+        resolver-boundary:
+          files:
+            - "**/schema.resolvers.go"
+          deny:
+            - pkg: "dayos/db"
+              desc: "resolvers must not import db package — use store interfaces and converters"
+            - pkg: "github.com/jackc/pgx/v5/pgtype"
+              desc: "resolvers must not use pgtype — use converters"
+            - pkg: "github.com/jackc/pgx/v5"
+              desc: "resolvers must not import pgx — use store interfaces"

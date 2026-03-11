@@ -14,7 +14,7 @@ import (
 
 func TestGraphQLIntrospection(t *testing.T) {
 	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{
-		Resolvers: &graph.Resolver{Pool: nil},
+		Resolvers: &graph.Resolver{},
 	}))
 
 	ts := httptest.NewServer(srv)
@@ -25,7 +25,7 @@ func TestGraphQLIntrospection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)

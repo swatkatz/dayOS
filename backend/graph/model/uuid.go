@@ -12,7 +12,7 @@ type UUID = uuid.UUID
 
 func MarshalUUID(u UUID) graphql.Marshaler {
 	return graphql.WriterFunc(func(w io.Writer) {
-		fmt.Fprintf(w, "%q", u.String())
+		_, _ = fmt.Fprintf(w, "%q", u.String())
 	})
 }
 

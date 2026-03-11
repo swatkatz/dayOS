@@ -17,6 +17,31 @@ React + TypeScript frontend, deployed on Railway.
 - Frontend uses Apollo Client with codegen types
 - Never hardcode the Anthropic model — use ANTHROPIC_MODEL env var (default: claude-sonnet-4-6)
 
+## Store + Resolver pattern
+Database details must not leak into the resolver layer. Resolvers never import `dayos/db`
+or `github.com/jackc/pgx`. The layers:
+
+1. **Store interface** (`graph/stores.go`) — per-context interface (e.g. `RoutineStore`) wrapping
+   the sqlc methods the resolver needs. `*db.Queries` satisfies it in production.
+2. **Converter** (`graph/{context}_convert.go`) — concrete struct per context (e.g. `routineConv`)
+   with consistent methods:
+   - `FromDB(dbModel) *gqlModel` — db → GraphQL model
+   - `ToDB(createInput) upsertParams` — GraphQL create input → sqlc params
+   - `MergeParams(existing dbModel, updateInput) upsertParams` — prefetch + merge for updates
+3. **Resolver** (`graph/schema.resolvers.go`) — calls store via interface, converts via converter.
+   Only imports `dayos/graph/model` — never `dayos/db` or `pgtype`.
+
+For updates: resolver fetches existing row via store, passes it to `MergeParams` which merges
+the update input onto the existing row, then calls the upsert.
+
+Prefer a single `Upsert` sqlc query per context over separate Create + Update queries.
+
+### Testing
+- Mock stores implement the store interface with in-memory maps (`graph/testutil_test.go`)
+- Factory functions (e.g. `factoryRoutine`) create test data through the mock store
+- No Docker/Postgres needed for resolver tests — only the `db` package has integration tests
+- `make lint` enforces the resolver/db boundary
+
 ## Data model rules
 - UUIDs everywhere (gen_random_uuid())
 - All timestamps in UTC

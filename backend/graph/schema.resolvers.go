@@ -35,17 +35,40 @@ func (r *mutationResolver) CompleteTask(ctx context.Context, id uuid.UUID) (*mod
 
 // CreateRoutine is the resolver for the createRoutine field.
 func (r *mutationResolver) CreateRoutine(ctx context.Context, input model.CreateRoutineInput) (*model.Routine, error) {
-	panic(fmt.Errorf("not implemented: CreateRoutine - createRoutine"))
+	if input.Frequency == model.FrequencyWeekly || input.Frequency == model.FrequencyCustom {
+		if len(input.DaysOfWeek) == 0 {
+			return nil, fmt.Errorf("daysOfWeek is required for %s frequency", input.Frequency)
+		}
+	}
+
+	row, err := r.RoutineStore.UpsertRoutine(ctx, routineConverter.ToDB(input))
+	if err != nil {
+		return nil, fmt.Errorf("creating routine: %w", err)
+	}
+	return routineConverter.FromDB(row), nil
 }
 
 // UpdateRoutine is the resolver for the updateRoutine field.
 func (r *mutationResolver) UpdateRoutine(ctx context.Context, id uuid.UUID, input model.UpdateRoutineInput) (*model.Routine, error) {
-	panic(fmt.Errorf("not implemented: UpdateRoutine - updateRoutine"))
+	existing, err := r.RoutineStore.GetRoutine(ctx, uuidToPgtype(id))
+	if err != nil {
+		return nil, fmt.Errorf("fetching routine: %w", err)
+	}
+
+	row, err := r.RoutineStore.UpsertRoutine(ctx, routineConverter.MergeParams(existing, input))
+	if err != nil {
+		return nil, fmt.Errorf("updating routine: %w", err)
+	}
+	return routineConverter.FromDB(row), nil
 }
 
 // DeleteRoutine is the resolver for the deleteRoutine field.
 func (r *mutationResolver) DeleteRoutine(ctx context.Context, id uuid.UUID) (bool, error) {
-	panic(fmt.Errorf("not implemented: DeleteRoutine - deleteRoutine"))
+	err := r.RoutineStore.DeleteRoutine(ctx, uuidToPgtype(id))
+	if err != nil {
+		return false, fmt.Errorf("deleting routine: %w", err)
+	}
+	return true, nil
 }
 
 // UpsertContext is the resolver for the upsertContext field.
@@ -110,7 +133,15 @@ func (r *queryResolver) Task(ctx context.Context, id uuid.UUID) (*model.Task, er
 
 // Routines is the resolver for the routines field.
 func (r *queryResolver) Routines(ctx context.Context, activeOnly *bool) ([]*model.Routine, error) {
-	panic(fmt.Errorf("not implemented: Routines - routines"))
+	rows, err := r.RoutineStore.ListRoutines(ctx, activeOnly)
+	if err != nil {
+		return nil, fmt.Errorf("listing routines: %w", err)
+	}
+	result := make([]*model.Routine, len(rows))
+	for i, row := range rows {
+		result[i] = routineConverter.FromDB(row)
+	}
+	return result, nil
 }
 
 // ContextEntries is the resolver for the contextEntries field.
