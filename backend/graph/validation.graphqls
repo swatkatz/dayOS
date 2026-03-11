@@ -1,0 +1,24 @@
+# AUTO-GENERATED from validation-rules.json — do not edit manually
+
+enum TextFieldRule {
+  """Single-line text field (titles, labels). Sanitizers: strip_newlines, strip_nulls, max 255."""
+  SINGLE_LINE
+  """Short single-line text field (keys, slugs). Sanitizers: strip_newlines, strip_nulls, max 100."""
+  SINGLE_LINE_SHORT
+  """Multi-line text field (notes, descriptions). Sanitizers: strip_nulls, max 2000."""
+  PLAIN_TEXT
+  """User message sent to AI conversation. Sanitizers: strip_nulls, max 5000."""
+  CHAT_MESSAGE
+}
+
+enum PromptRole {
+  """Untrusted data embedded in AI prompts"""
+  CONTEXT_DATA
+  """User message in AI conversation array"""
+  USER_MESSAGE
+  """AI-generated output stored and displayed to user"""
+  AI_OUTPUT
+}
+
+directive @validate(rule: TextFieldRule!) on INPUT_FIELD_DEFINITION | ARGUMENT_DEFINITION
+directive @prompt(role: PromptRole!) on INPUT_FIELD_DEFINITION | FIELD_DEFINITION | ARGUMENT_DEFINITION

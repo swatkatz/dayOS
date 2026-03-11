@@ -1,11 +1,14 @@
-.PHONY: dev generate migrate build lint
+.PHONY: dev generate generate-validation migrate build lint
 
 dev:
 	cd backend && go run ./main.go
 
-generate:
+generate: generate-validation
 	cd backend && go run github.com/99designs/gqlgen generate
 	cd backend && sqlc generate
+
+generate-validation:
+	cd backend && go run ./cmd/genvalidation
 
 migrate:
 	cd backend && migrate -path db/migrations -database "$$DATABASE_URL" up
