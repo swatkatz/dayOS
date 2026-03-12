@@ -1,5 +1,6 @@
 schema:
   - graph/schema.graphqls
+  - graph/validation.graphqls
 
 exec:
   filename: graph/generated.go

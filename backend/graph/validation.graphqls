@@ -11,14 +11,4 @@ enum TextFieldRule {
   CHAT_MESSAGE
 }
 
-enum PromptRole {
-  """Untrusted data embedded in AI prompts"""
-  CONTEXT_DATA
-  """User message in AI conversation array"""
-  USER_MESSAGE
-  """AI-generated output stored and displayed to user"""
-  AI_OUTPUT
-}
-
 directive @validate(rule: TextFieldRule!) on INPUT_FIELD_DEFINITION | ARGUMENT_DEFINITION
-directive @prompt(role: PromptRole!) on INPUT_FIELD_DEFINITION | FIELD_DEFINITION | ARGUMENT_DEFINITION

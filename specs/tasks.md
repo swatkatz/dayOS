@@ -146,23 +146,23 @@ Note: `IncrementTimesDeferred` and `UpdateActualMinutes` are defined here (they 
 
 ### Input validation
 
-Input validation uses the `validate` package (see `specs/validation.md`). Converters call `validate.Validate()` before constructing DB params.
+Input validation uses gqlgen directives (see `specs/validation.md`). Fields annotated with `@validate` in `schema.graphqls` are automatically sanitized and length-checked by the directive handler before the resolver runs. Converters do NOT perform text validation.
 
-- When `createTask` or `updateTask` is called, the system shall validate `title` with rule `SingleLine` and `notes` with rule `PlainText`.
-- When validation fails, the system shall return the validation error without writing to the database.
+- When `createTask` or `updateTask` is called with an annotated field, the `@validate` directive handler shall sanitize and length-check the value before the resolver executes.
+- When validation fails, the directive handler shall return the validation error without the resolver or database being reached.
 
 ### GraphQL directive annotations
 
 ```graphql
 input CreateTaskInput {
-  title: String!  @validate(rule: SINGLE_LINE)  @prompt(role: CONTEXT_DATA)
-  notes: String   @validate(rule: PLAIN_TEXT)    @prompt(role: CONTEXT_DATA)
+  title: String!  @validate(rule: SINGLE_LINE)
+  notes: String   @validate(rule: PLAIN_TEXT)
   # remaining fields: enums, ints, UUIDs — no validation directives needed
 }
 
 input UpdateTaskInput {
-  title: String   @validate(rule: SINGLE_LINE)  @prompt(role: CONTEXT_DATA)
-  notes: String   @validate(rule: PLAIN_TEXT)    @prompt(role: CONTEXT_DATA)
+  title: String   @validate(rule: SINGLE_LINE)
+  notes: String   @validate(rule: PLAIN_TEXT)
 }
 ```
 

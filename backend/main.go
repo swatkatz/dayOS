@@ -53,12 +53,14 @@ func main() {
 
 	// Initialize sqlc queries and GraphQL server
 	queries := db.New(pool)
-	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{
+	cfg := graph.Config{
 		Resolvers: &graph.Resolver{
 			RoutineStore: queries,
 			TaskStore:    queries,
 		},
-	}))
+	}
+	cfg.Directives.Validate = graph.ValidateDirective()
+	srv := handler.NewDefaultServer(graph.NewExecutableSchema(cfg))
 
 	authMiddleware := auth.RequireAuth(appSecret)
 

@@ -96,16 +96,14 @@ The system prompt is rebuilt fresh on every `sendPlanMessage` call. User-control
 
 ```graphql
 type Mutation {
-  sendPlanMessage(date: Date!, message: String! @validate(rule: CHAT_MESSAGE) @prompt(role: USER_MESSAGE)): DayPlan!
-  startTaskConversation(message: String! @validate(rule: CHAT_MESSAGE) @prompt(role: USER_MESSAGE)): TaskConversation!
-  sendTaskMessage(conversationId: UUID!, message: String! @validate(rule: CHAT_MESSAGE) @prompt(role: USER_MESSAGE)): TaskConversation!
-}
-
-type PlanBlock {
-  title:  String!  @prompt(role: AI_OUTPUT)
-  notes:  String   @prompt(role: AI_OUTPUT)
+  sendPlanMessage(date: Date!, message: String! @validate(rule: CHAT_MESSAGE)): DayPlan!
+  startTaskConversation(message: String! @validate(rule: CHAT_MESSAGE)): TaskConversation!
+  sendTaskMessage(conversationId: UUID!, message: String! @validate(rule: CHAT_MESSAGE)): TaskConversation!
 }
 ```
+
+Note: `PlanBlock.title` and `PlanBlock.notes` are AI-generated output fields. The planner validates them
+using `validate.ValidateAIOutput()` when parsing Claude's response — this is not handled by a GraphQL directive.
 
 #### System prompt template
 

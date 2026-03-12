@@ -59,14 +59,11 @@ func TestGenerator(t *testing.T) {
 	if !strings.Contains(gqlStr, "SINGLE_LINE") {
 		t.Error("GraphQL file missing SINGLE_LINE")
 	}
-	if !strings.Contains(gqlStr, "enum PromptRole") {
-		t.Error("GraphQL file missing PromptRole enum")
-	}
 	if !strings.Contains(gqlStr, "directive @validate") {
 		t.Error("GraphQL file missing @validate directive")
 	}
-	if !strings.Contains(gqlStr, "directive @prompt") {
-		t.Error("GraphQL file missing @prompt directive")
+	if strings.Contains(gqlStr, "directive @prompt") {
+		t.Error("GraphQL file should not contain @prompt directive")
 	}
 
 	// Verify Go file

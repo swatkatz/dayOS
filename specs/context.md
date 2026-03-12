@@ -84,18 +84,18 @@ CREATE UNIQUE INDEX idx_context_entries_category_key ON context_entries(category
 
 ### Input validation
 
-Input validation uses the `validate` package (see `specs/validation.md`). Converters call `validate.Validate()` before constructing DB params.
+Input validation uses gqlgen directives (see `specs/validation.md`). Fields annotated with `@validate` in `schema.graphqls` are automatically sanitized and length-checked by the directive handler before the resolver runs. Converters do NOT perform text validation.
 
-- When `upsertContext` is called, the system shall validate `key` with rule `SingleLineShort` and `value` with rule `PlainText`.
-- When validation fails, the system shall return the validation error without writing to the database.
+- When `upsertContext` is called with an annotated field, the `@validate` directive handler shall sanitize and length-check the value before the resolver executes.
+- When validation fails, the directive handler shall return the validation error without the resolver or database being reached.
 
 ### GraphQL directive annotations
 
 ```graphql
 input UpsertContextInput {
   category: ContextCategory!
-  key:      String!  @validate(rule: SINGLE_LINE_SHORT)  @prompt(role: CONTEXT_DATA)
-  value:    String!  @validate(rule: PLAIN_TEXT)          @prompt(role: CONTEXT_DATA)
+  key:      String!  @validate(rule: SINGLE_LINE_SHORT)
+  value:    String!  @validate(rule: PLAIN_TEXT)
 }
 ```
 

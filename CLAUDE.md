@@ -56,12 +56,14 @@ Prefer a single `Upsert` sqlc query per context over separate Create + Update qu
 
 ## Input validation rules
 
-All user-provided string fields must be validated at the converter layer before DB insertion:
+Input validation uses **gqlgen directives**, not converter code:
 
-- **Single-line fields** (`title`, `key`): strip `\n`, `\r`, `\x00`. Max lengths: title=255, key=100
-- **Multi-line fields** (`notes`, `value`): strip `\x00`. Max lengths: notes=2000, value=1000
-- Return a descriptive validation error if limits are exceeded (do not silently truncate)
-- Validation lives in converters (`ToDB` / `MergeParams`), not in resolvers
+- The `@validate` directive is declared in `backend/graph/validation.graphqls` (auto-generated from `validation-rules.json`)
+- Directive annotations are applied to input fields in `schema.graphqls` (owned by each context's spec)
+- The `@validate` directive handler is wired in `main.go` via `Config.Directives` — it calls `validate.Validate()` automatically before the resolver runs
+- Resolvers and converters receive already-sanitized data — they do NOT call `validate.Validate()`
+- Validation rules (sanitizers, max lengths) are defined in `validation-rules.json` (single source of truth)
+- The `validate` package also provides `FormatContextData()` for prompt safety and `ValidateAIOutput()` for AI response checking
 
 ## Prompt safety rules
 

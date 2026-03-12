@@ -108,16 +108,7 @@ func generateGraphQL(rules Rules) error {
 	}
 	b.WriteString("}\n\n")
 
-	b.WriteString("enum PromptRole {\n")
-	for _, name := range promptRoleOrder {
-		def := rules.PromptRoles[name]
-		b.WriteString(fmt.Sprintf("  \"\"\"%s\"\"\"\n", def.Description))
-		b.WriteString(fmt.Sprintf("  %s\n", name))
-	}
-	b.WriteString("}\n\n")
-
 	b.WriteString("directive @validate(rule: TextFieldRule!) on INPUT_FIELD_DEFINITION | ARGUMENT_DEFINITION\n")
-	b.WriteString("directive @prompt(role: PromptRole!) on INPUT_FIELD_DEFINITION | FIELD_DEFINITION | ARGUMENT_DEFINITION\n")
 
 	return os.WriteFile("graph/validation.graphqls", []byte(b.String()), 0644)
 }

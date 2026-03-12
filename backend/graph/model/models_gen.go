@@ -517,6 +517,69 @@ func (e Priority) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+type TextFieldRule string
+
+const (
+	// Single-line text field (titles, labels). Sanitizers: strip_newlines, strip_nulls, max 255.
+	TextFieldRuleSingleLine TextFieldRule = "SINGLE_LINE"
+	// Short single-line text field (keys, slugs). Sanitizers: strip_newlines, strip_nulls, max 100.
+	TextFieldRuleSingleLineShort TextFieldRule = "SINGLE_LINE_SHORT"
+	// Multi-line text field (notes, descriptions). Sanitizers: strip_nulls, max 2000.
+	TextFieldRulePlainText TextFieldRule = "PLAIN_TEXT"
+	// User message sent to AI conversation. Sanitizers: strip_nulls, max 5000.
+	TextFieldRuleChatMessage TextFieldRule = "CHAT_MESSAGE"
+)
+
+var AllTextFieldRule = []TextFieldRule{
+	TextFieldRuleSingleLine,
+	TextFieldRuleSingleLineShort,
+	TextFieldRulePlainText,
+	TextFieldRuleChatMessage,
+}
+
+func (e TextFieldRule) IsValid() bool {
+	switch e {
+	case TextFieldRuleSingleLine, TextFieldRuleSingleLineShort, TextFieldRulePlainText, TextFieldRuleChatMessage:
+		return true
+	}
+	return false
+}
+
+func (e TextFieldRule) String() string {
+	return string(e)
+}
+
+func (e *TextFieldRule) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = TextFieldRule(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid TextFieldRule", str)
+	}
+	return nil
+}
+
+func (e TextFieldRule) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *TextFieldRule) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e TextFieldRule) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type TimeOfDay string
 
 const (

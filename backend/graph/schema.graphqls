@@ -146,57 +146,47 @@ type TaskMessage {
 # Inputs
 
 input CreateTaskInput {
-  title:            String!
-  category:         Category!
+  title:            String!  @validate(rule: SINGLE_LINE)  category:         Category!
   priority:         Priority!
   parentId:         UUID
   estimatedMinutes: Int
   deadlineType:     DeadlineType
   deadlineDate:     Date
   deadlineDays:     Int
-  notes:            String
-  routineId:        UUID
+  notes:            String   @validate(rule: PLAIN_TEXT)  routineId:        UUID
 }
 
 input UpdateTaskInput {
-  title:            String
-  category:         Category
+  title:            String   @validate(rule: SINGLE_LINE)  category:         Category
   priority:         Priority
   estimatedMinutes: Int
   deadlineType:     DeadlineType
   deadlineDate:     Date
   deadlineDays:     Int
-  notes:            String
-  routineId:        UUID
+  notes:            String   @validate(rule: PLAIN_TEXT)  routineId:        UUID
   isCompleted:      Boolean
 }
 
 input CreateRoutineInput {
-  title:                String!
-  category:             Category!
+  title:                String!  @validate(rule: SINGLE_LINE)  category:             Category!
   frequency:            Frequency!
   daysOfWeek:           [Int!]
   preferredTimeOfDay:   TimeOfDay
   preferredDurationMin: Int
-  notes:                String
-}
+  notes:                String   @validate(rule: PLAIN_TEXT)}
 
 input UpdateRoutineInput {
-  title:                String
-  category:             Category
+  title:                String   @validate(rule: SINGLE_LINE)  category:             Category
   frequency:            Frequency
   daysOfWeek:           [Int!]
   preferredTimeOfDay:   TimeOfDay
   preferredDurationMin: Int
-  notes:                String
-  isActive:             Boolean
+  notes:                String   @validate(rule: PLAIN_TEXT)  isActive:             Boolean
 }
 
 input UpsertContextInput {
   category: ContextCategory!
-  key:      String!
-  value:    String!
-}
+  key:      String!  @validate(rule: SINGLE_LINE_SHORT)  value:    String!  @validate(rule: PLAIN_TEXT)}
 
 input UpdateBlockInput {
   skipped:  Boolean
@@ -235,7 +225,7 @@ type Mutation {
   deleteContext(id: UUID!): Boolean!
 
   # Plan chat
-  sendPlanMessage(date: Date!, message: String!): DayPlan!
+  sendPlanMessage(date: Date!, message: String! @validate(rule: CHAT_MESSAGE)): DayPlan!
   acceptPlan(date: Date!): DayPlan!
 
   # Block actions
@@ -243,8 +233,8 @@ type Mutation {
   updateBlock(planId: UUID!, blockId: String!, input: UpdateBlockInput!): DayPlan!
 
   # Task scoping chat
-  startTaskConversation(message: String!): TaskConversation!
-  sendTaskMessage(conversationId: UUID!, message: String!): TaskConversation!
+  startTaskConversation(message: String! @validate(rule: CHAT_MESSAGE)): TaskConversation!
+  sendTaskMessage(conversationId: UUID!, message: String! @validate(rule: CHAT_MESSAGE)): TaskConversation!
   confirmTaskBreakdown(conversationId: UUID!): [Task!]!
 
   # Carry-over

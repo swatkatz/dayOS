@@ -130,17 +130,7 @@ PLAIN_TEXT
 CHAT_MESSAGE
 }
 
-enum PromptRole {
-"""Untrusted data embedded in AI prompts. JSON-serialized, delimited with <user-data> tags."""
-CONTEXT_DATA
-"""User message in AI conversation array. Cannot override system rules."""
-USER_MESSAGE
-"""AI-generated output. Validated for length and exfiltration patterns."""
-AI_OUTPUT
-}
-
 directive @validate(rule: TextFieldRule!) on INPUT_FIELD_DEFINITION | ARGUMENT_DEFINITION
-directive @prompt(role: PromptRole!) on INPUT_FIELD_DEFINITION | FIELD_DEFINITION | ARGUMENT_DEFINITION
 ```
 
 ### Generated: `backend/validate/generated.go`
@@ -317,29 +307,80 @@ generate-validation:
 
 `generate-validation` runs before `generate-gqlgen` so the directive enums exist when gqlgen processes the schema.
 
+## Directive Wiring
+
+### `gqlgen.yml`
+
+The validation schema must be included so gqlgen generates directive handler types:
+
+```yaml
+schema:
+  - graph/schema.graphqls
+  - graph/validation.graphqls
+```
+
+After running `make generate`, gqlgen produces a `DirectiveRoot` struct with a `Validate` function field.
+
+### Directive handler
+
+The `@validate` directive handler is implemented in `graph/directives.go` and wired in `main.go`. gqlgen calls it automatically for every field annotated with `@validate` — the resolver receives already-sanitized data.
+
+```go
+cfg.Directives.Validate = func(ctx context.Context, obj any, next graphql.Resolver, rule model.TextFieldRule) (any, error) {
+	val, err := next(ctx)
+	if err != nil {
+		return nil, err
+	}
+	s, ok := val.(string)
+	if !ok || s == "" {
+		return val, nil
+	}
+	var r validate.TextFieldRule
+	switch rule {
+	case model.TextFieldRuleSingleLine:
+		r = validate.SingleLine
+	case model.TextFieldRuleSingleLineShort:
+		r = validate.SingleLineShort
+	case model.TextFieldRulePlainText:
+		r = validate.PlainText
+	case model.TextFieldRuleChatMessage:
+		r = validate.ChatMessage
+	}
+	fieldName := graphql.GetPathContext(ctx).Field
+	return validate.Validate(r, *fieldName, s)
+}
+```
+
+### Key design decision
+
+Validation runs as gqlgen directive middleware, NOT in converters. This means:
+- Converters (`ToDB`, `MergeParams`) do NOT call `validate.Validate()` — they receive already-clean data
+- Converters still handle non-text-validation business logic (e.g. deadline validation in tasks)
+- The `@validate` directive is the single enforcement point for text field sanitization and length checks
+- `validate.FormatContextData()` and `validate.ValidateAIOutput()` are still called manually by the planner (they are not directive-driven)
+- Prompt safety (wrapping user data in `<user-data>` tags, AI output validation) is the planner's responsibility — it uses the generated constants from the `validate` package but there is no GraphQL directive for it
+
 ## Field Annotations (owned by each context's spec)
 
-The generated directives are applied to fields in `schema.graphqls` by each context. This spec does NOT own the annotations — it only generates the directive definitions. See the tasks, routines, context, and planner specs for which fields get which rules.
+The `@validate` directive is applied to fields in `schema.graphqls` by each context. This spec only generates the directive definition. See the tasks, routines, context, and planner specs for which fields get which rules.
 
 Summary of annotations across the codebase:
 
-| Field | @validate | @prompt |
-|-------|-----------|---------|
-| `CreateTaskInput.title` | `SINGLE_LINE` | `CONTEXT_DATA` |
-| `CreateTaskInput.notes` | `PLAIN_TEXT` | `CONTEXT_DATA` |
-| `UpdateTaskInput.title` | `SINGLE_LINE` | `CONTEXT_DATA` |
-| `UpdateTaskInput.notes` | `PLAIN_TEXT` | `CONTEXT_DATA` |
-| `CreateRoutineInput.title` | `SINGLE_LINE` | `CONTEXT_DATA` |
-| `CreateRoutineInput.notes` | `PLAIN_TEXT` | `CONTEXT_DATA` |
-| `UpdateRoutineInput.title` | `SINGLE_LINE` | `CONTEXT_DATA` |
-| `UpdateRoutineInput.notes` | `PLAIN_TEXT` | `CONTEXT_DATA` |
-| `UpsertContextInput.key` | `SINGLE_LINE_SHORT` | `CONTEXT_DATA` |
-| `UpsertContextInput.value` | `PLAIN_TEXT` | `CONTEXT_DATA` |
-| `sendPlanMessage.message` | `CHAT_MESSAGE` | `USER_MESSAGE` |
-| `startTaskConversation.message` | `CHAT_MESSAGE` | `USER_MESSAGE` |
-| `sendTaskMessage.message` | `CHAT_MESSAGE` | `USER_MESSAGE` |
-| `PlanBlock.title` | — | `AI_OUTPUT` |
-| `PlanBlock.notes` | — | `AI_OUTPUT` |
+| Field | @validate |
+|-------|-----------|
+| `CreateTaskInput.title` | `SINGLE_LINE` |
+| `CreateTaskInput.notes` | `PLAIN_TEXT` |
+| `UpdateTaskInput.title` | `SINGLE_LINE` |
+| `UpdateTaskInput.notes` | `PLAIN_TEXT` |
+| `CreateRoutineInput.title` | `SINGLE_LINE` |
+| `CreateRoutineInput.notes` | `PLAIN_TEXT` |
+| `UpdateRoutineInput.title` | `SINGLE_LINE` |
+| `UpdateRoutineInput.notes` | `PLAIN_TEXT` |
+| `UpsertContextInput.key` | `SINGLE_LINE_SHORT` |
+| `UpsertContextInput.value` | `PLAIN_TEXT` |
+| `sendPlanMessage.message` | `CHAT_MESSAGE` |
+| `startTaskConversation.message` | `CHAT_MESSAGE` |
+| `sendTaskMessage.message` | `CHAT_MESSAGE` |
 
 ## Behaviors (EARS syntax)
 
@@ -402,5 +443,6 @@ To reuse this system in another AI-integrated project:
 1. Copy `validation-rules.json` — edit rules, add new ones as needed
 2. Copy `cmd/genvalidation/` — the generator is project-agnostic
 3. Run the generator to produce GraphQL + Go (or adapt for your language)
-4. Annotate your schema fields with `@validate` and `@prompt`
-5. Call `validate.Validate()` in your input layer, `validate.FormatContextData()` in your prompt builder, `validate.ValidateAIOutput()` when parsing AI responses
+4. Annotate your schema input fields with `@validate`
+5. Wire the directive handler in your server setup (see "Directive Wiring" above) — `validate.Validate()` runs automatically via the `@validate` directive handler
+6. Call `validate.FormatContextData()` in your prompt builder, `validate.ValidateAIOutput()` when parsing AI responses

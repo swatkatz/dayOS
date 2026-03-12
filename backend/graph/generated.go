@@ -34,6 +34,7 @@ type ResolverRoot interface {
 }
 
 type DirectiveRoot struct {
+	Validate func(ctx context.Context, obj any, next graphql.Resolver, rule model.TextFieldRule) (res any, err error)
 }
 
 type ComplexityRoot struct {
@@ -959,7 +960,7 @@ func newExecutionContext(
 	}
 }
 
-//go:embed "schema.graphqls"
+//go:embed "schema.graphqls" "validation.graphqls"
 var sourcesFS embed.FS
 
 func sourceData(filename string) string {
@@ -972,12 +973,24 @@ func sourceData(filename string) string {
 
 var sources = []*ast.Source{
 	{Name: "schema.graphqls", Input: sourceData("schema.graphqls"), BuiltIn: false},
+	{Name: "validation.graphqls", Input: sourceData("validation.graphqls"), BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
 // endregion ************************** generated!.gotpl **************************
 
 // region    ***************************** args.gotpl *****************************
+
+func (ec *executionContext) dir_validate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "rule", ec.unmarshalNTextFieldRule2dayosᚋgraphᚋmodelᚐTextFieldRule)
+	if err != nil {
+		return nil, err
+	}
+	args["rule"] = arg0
+	return args, nil
+}
 
 func (ec *executionContext) field_Mutation_acceptPlan_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
@@ -1096,12 +1109,58 @@ func (ec *executionContext) field_Mutation_sendPlanMessage_args(ctx context.Cont
 		return nil, err
 	}
 	args["date"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "message", ec.unmarshalNString2string)
+
+	arg1, err := ec.field_Mutation_sendPlanMessage_argsMessage(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
 	args["message"] = arg1
 	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_sendPlanMessage_argsMessage(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	if _, ok := rawArgs["message"]; !ok {
+		var zeroVal string
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("message"))
+	directive0 := func(ctx context.Context) (any, error) {
+		tmp, ok := rawArgs["message"]
+		if !ok {
+			var zeroVal string
+			return zeroVal, nil
+		}
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	directive1 := func(ctx context.Context) (any, error) {
+		rule, err := ec.unmarshalNTextFieldRule2dayosᚋgraphᚋmodelᚐTextFieldRule(ctx, "CHAT_MESSAGE")
+		if err != nil {
+			var zeroVal string
+			return zeroVal, err
+		}
+		if ec.Directives.Validate == nil {
+			var zeroVal string
+			return zeroVal, errors.New("directive validate is not implemented")
+		}
+		return ec.Directives.Validate(ctx, rawArgs, directive0, rule)
+	}
+
+	tmp, err := directive1(ctx)
+	if err != nil {
+		var zeroVal string
+		return zeroVal, graphql.ErrorOnPath(ctx, err)
+	}
+	if data, ok := tmp.(string); ok {
+		return data, nil
+	} else {
+		var zeroVal string
+		return zeroVal, graphql.ErrorOnPath(ctx, fmt.Errorf(`unexpected type %T from directive, should be string`, tmp))
+	}
 }
 
 func (ec *executionContext) field_Mutation_sendTaskMessage_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
@@ -1112,12 +1171,58 @@ func (ec *executionContext) field_Mutation_sendTaskMessage_args(ctx context.Cont
 		return nil, err
 	}
 	args["conversationId"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "message", ec.unmarshalNString2string)
+
+	arg1, err := ec.field_Mutation_sendTaskMessage_argsMessage(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
 	args["message"] = arg1
 	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_sendTaskMessage_argsMessage(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	if _, ok := rawArgs["message"]; !ok {
+		var zeroVal string
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("message"))
+	directive0 := func(ctx context.Context) (any, error) {
+		tmp, ok := rawArgs["message"]
+		if !ok {
+			var zeroVal string
+			return zeroVal, nil
+		}
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	directive1 := func(ctx context.Context) (any, error) {
+		rule, err := ec.unmarshalNTextFieldRule2dayosᚋgraphᚋmodelᚐTextFieldRule(ctx, "CHAT_MESSAGE")
+		if err != nil {
+			var zeroVal string
+			return zeroVal, err
+		}
+		if ec.Directives.Validate == nil {
+			var zeroVal string
+			return zeroVal, errors.New("directive validate is not implemented")
+		}
+		return ec.Directives.Validate(ctx, rawArgs, directive0, rule)
+	}
+
+	tmp, err := directive1(ctx)
+	if err != nil {
+		var zeroVal string
+		return zeroVal, graphql.ErrorOnPath(ctx, err)
+	}
+	if data, ok := tmp.(string); ok {
+		return data, nil
+	} else {
+		var zeroVal string
+		return zeroVal, graphql.ErrorOnPath(ctx, fmt.Errorf(`unexpected type %T from directive, should be string`, tmp))
+	}
 }
 
 func (ec *executionContext) field_Mutation_skipBlock_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
@@ -1139,12 +1244,58 @@ func (ec *executionContext) field_Mutation_skipBlock_args(ctx context.Context, r
 func (ec *executionContext) field_Mutation_startTaskConversation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "message", ec.unmarshalNString2string)
+
+	arg0, err := ec.field_Mutation_startTaskConversation_argsMessage(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
 	args["message"] = arg0
 	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_startTaskConversation_argsMessage(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	if _, ok := rawArgs["message"]; !ok {
+		var zeroVal string
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("message"))
+	directive0 := func(ctx context.Context) (any, error) {
+		tmp, ok := rawArgs["message"]
+		if !ok {
+			var zeroVal string
+			return zeroVal, nil
+		}
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	directive1 := func(ctx context.Context) (any, error) {
+		rule, err := ec.unmarshalNTextFieldRule2dayosᚋgraphᚋmodelᚐTextFieldRule(ctx, "CHAT_MESSAGE")
+		if err != nil {
+			var zeroVal string
+			return zeroVal, err
+		}
+		if ec.Directives.Validate == nil {
+			var zeroVal string
+			return zeroVal, errors.New("directive validate is not implemented")
+		}
+		return ec.Directives.Validate(ctx, rawArgs, directive0, rule)
+	}
+
+	tmp, err := directive1(ctx)
+	if err != nil {
+		var zeroVal string
+		return zeroVal, graphql.ErrorOnPath(ctx, err)
+	}
+	if data, ok := tmp.(string); ok {
+		return data, nil
+	} else {
+		var zeroVal string
+		return zeroVal, graphql.ErrorOnPath(ctx, fmt.Errorf(`unexpected type %T from directive, should be string`, tmp))
+	}
 }
 
 func (ec *executionContext) field_Mutation_toggleContext_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
@@ -6453,11 +6604,31 @@ func (ec *executionContext) unmarshalInputCreateRoutineInput(ctx context.Context
 		switch k {
 		case "title":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
+			directive0 := func(ctx context.Context) (any, error) { return ec.unmarshalNString2string(ctx, v) }
+
+			directive1 := func(ctx context.Context) (any, error) {
+				rule, err := ec.unmarshalNTextFieldRule2dayosᚋgraphᚋmodelᚐTextFieldRule(ctx, "SINGLE_LINE")
+				if err != nil {
+					var zeroVal string
+					return zeroVal, err
+				}
+				if ec.Directives.Validate == nil {
+					var zeroVal string
+					return zeroVal, errors.New("directive validate is not implemented")
+				}
+				return ec.Directives.Validate(ctx, obj, directive0, rule)
 			}
-			it.Title = data
+
+			tmp, err := directive1(ctx)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			if data, ok := tmp.(string); ok {
+				it.Title = data
+			} else {
+				err := fmt.Errorf(`unexpected type %T from directive, should be string`, tmp)
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
 		case "category":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("category"))
 			data, err := ec.unmarshalNCategory2dayosᚋgraphᚋmodelᚐCategory(ctx, v)
@@ -6495,11 +6666,33 @@ func (ec *executionContext) unmarshalInputCreateRoutineInput(ctx context.Context
 			it.PreferredDurationMin = data
 		case "notes":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("notes"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
+			directive0 := func(ctx context.Context) (any, error) { return ec.unmarshalOString2ᚖstring(ctx, v) }
+
+			directive1 := func(ctx context.Context) (any, error) {
+				rule, err := ec.unmarshalNTextFieldRule2dayosᚋgraphᚋmodelᚐTextFieldRule(ctx, "PLAIN_TEXT")
+				if err != nil {
+					var zeroVal *string
+					return zeroVal, err
+				}
+				if ec.Directives.Validate == nil {
+					var zeroVal *string
+					return zeroVal, errors.New("directive validate is not implemented")
+				}
+				return ec.Directives.Validate(ctx, obj, directive0, rule)
 			}
-			it.Notes = data
+
+			tmp, err := directive1(ctx)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			if data, ok := tmp.(*string); ok {
+				it.Notes = data
+			} else if tmp == nil {
+				it.Notes = nil
+			} else {
+				err := fmt.Errorf(`unexpected type %T from directive, should be *string`, tmp)
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
 		}
 	}
 	return it, nil
@@ -6521,11 +6714,31 @@ func (ec *executionContext) unmarshalInputCreateTaskInput(ctx context.Context, o
 		switch k {
 		case "title":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
+			directive0 := func(ctx context.Context) (any, error) { return ec.unmarshalNString2string(ctx, v) }
+
+			directive1 := func(ctx context.Context) (any, error) {
+				rule, err := ec.unmarshalNTextFieldRule2dayosᚋgraphᚋmodelᚐTextFieldRule(ctx, "SINGLE_LINE")
+				if err != nil {
+					var zeroVal string
+					return zeroVal, err
+				}
+				if ec.Directives.Validate == nil {
+					var zeroVal string
+					return zeroVal, errors.New("directive validate is not implemented")
+				}
+				return ec.Directives.Validate(ctx, obj, directive0, rule)
 			}
-			it.Title = data
+
+			tmp, err := directive1(ctx)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			if data, ok := tmp.(string); ok {
+				it.Title = data
+			} else {
+				err := fmt.Errorf(`unexpected type %T from directive, should be string`, tmp)
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
 		case "category":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("category"))
 			data, err := ec.unmarshalNCategory2dayosᚋgraphᚋmodelᚐCategory(ctx, v)
@@ -6577,11 +6790,33 @@ func (ec *executionContext) unmarshalInputCreateTaskInput(ctx context.Context, o
 			it.DeadlineDays = data
 		case "notes":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("notes"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
+			directive0 := func(ctx context.Context) (any, error) { return ec.unmarshalOString2ᚖstring(ctx, v) }
+
+			directive1 := func(ctx context.Context) (any, error) {
+				rule, err := ec.unmarshalNTextFieldRule2dayosᚋgraphᚋmodelᚐTextFieldRule(ctx, "PLAIN_TEXT")
+				if err != nil {
+					var zeroVal *string
+					return zeroVal, err
+				}
+				if ec.Directives.Validate == nil {
+					var zeroVal *string
+					return zeroVal, errors.New("directive validate is not implemented")
+				}
+				return ec.Directives.Validate(ctx, obj, directive0, rule)
 			}
-			it.Notes = data
+
+			tmp, err := directive1(ctx)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			if data, ok := tmp.(*string); ok {
+				it.Notes = data
+			} else if tmp == nil {
+				it.Notes = nil
+			} else {
+				err := fmt.Errorf(`unexpected type %T from directive, should be *string`, tmp)
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
 		case "routineId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("routineId"))
 			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
@@ -6657,11 +6892,33 @@ func (ec *executionContext) unmarshalInputUpdateRoutineInput(ctx context.Context
 		switch k {
 		case "title":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
+			directive0 := func(ctx context.Context) (any, error) { return ec.unmarshalOString2ᚖstring(ctx, v) }
+
+			directive1 := func(ctx context.Context) (any, error) {
+				rule, err := ec.unmarshalNTextFieldRule2dayosᚋgraphᚋmodelᚐTextFieldRule(ctx, "SINGLE_LINE")
+				if err != nil {
+					var zeroVal *string
+					return zeroVal, err
+				}
+				if ec.Directives.Validate == nil {
+					var zeroVal *string
+					return zeroVal, errors.New("directive validate is not implemented")
+				}
+				return ec.Directives.Validate(ctx, obj, directive0, rule)
 			}
-			it.Title = data
+
+			tmp, err := directive1(ctx)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			if data, ok := tmp.(*string); ok {
+				it.Title = data
+			} else if tmp == nil {
+				it.Title = nil
+			} else {
+				err := fmt.Errorf(`unexpected type %T from directive, should be *string`, tmp)
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
 		case "category":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("category"))
 			data, err := ec.unmarshalOCategory2ᚖdayosᚋgraphᚋmodelᚐCategory(ctx, v)
@@ -6699,11 +6956,33 @@ func (ec *executionContext) unmarshalInputUpdateRoutineInput(ctx context.Context
 			it.PreferredDurationMin = data
 		case "notes":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("notes"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
+			directive0 := func(ctx context.Context) (any, error) { return ec.unmarshalOString2ᚖstring(ctx, v) }
+
+			directive1 := func(ctx context.Context) (any, error) {
+				rule, err := ec.unmarshalNTextFieldRule2dayosᚋgraphᚋmodelᚐTextFieldRule(ctx, "PLAIN_TEXT")
+				if err != nil {
+					var zeroVal *string
+					return zeroVal, err
+				}
+				if ec.Directives.Validate == nil {
+					var zeroVal *string
+					return zeroVal, errors.New("directive validate is not implemented")
+				}
+				return ec.Directives.Validate(ctx, obj, directive0, rule)
 			}
-			it.Notes = data
+
+			tmp, err := directive1(ctx)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			if data, ok := tmp.(*string); ok {
+				it.Notes = data
+			} else if tmp == nil {
+				it.Notes = nil
+			} else {
+				err := fmt.Errorf(`unexpected type %T from directive, should be *string`, tmp)
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
 		case "isActive":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isActive"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -6732,11 +7011,33 @@ func (ec *executionContext) unmarshalInputUpdateTaskInput(ctx context.Context, o
 		switch k {
 		case "title":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
+			directive0 := func(ctx context.Context) (any, error) { return ec.unmarshalOString2ᚖstring(ctx, v) }
+
+			directive1 := func(ctx context.Context) (any, error) {
+				rule, err := ec.unmarshalNTextFieldRule2dayosᚋgraphᚋmodelᚐTextFieldRule(ctx, "SINGLE_LINE")
+				if err != nil {
+					var zeroVal *string
+					return zeroVal, err
+				}
+				if ec.Directives.Validate == nil {
+					var zeroVal *string
+					return zeroVal, errors.New("directive validate is not implemented")
+				}
+				return ec.Directives.Validate(ctx, obj, directive0, rule)
 			}
-			it.Title = data
+
+			tmp, err := directive1(ctx)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			if data, ok := tmp.(*string); ok {
+				it.Title = data
+			} else if tmp == nil {
+				it.Title = nil
+			} else {
+				err := fmt.Errorf(`unexpected type %T from directive, should be *string`, tmp)
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
 		case "category":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("category"))
 			data, err := ec.unmarshalOCategory2ᚖdayosᚋgraphᚋmodelᚐCategory(ctx, v)
@@ -6781,11 +7082,33 @@ func (ec *executionContext) unmarshalInputUpdateTaskInput(ctx context.Context, o
 			it.DeadlineDays = data
 		case "notes":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("notes"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
+			directive0 := func(ctx context.Context) (any, error) { return ec.unmarshalOString2ᚖstring(ctx, v) }
+
+			directive1 := func(ctx context.Context) (any, error) {
+				rule, err := ec.unmarshalNTextFieldRule2dayosᚋgraphᚋmodelᚐTextFieldRule(ctx, "PLAIN_TEXT")
+				if err != nil {
+					var zeroVal *string
+					return zeroVal, err
+				}
+				if ec.Directives.Validate == nil {
+					var zeroVal *string
+					return zeroVal, errors.New("directive validate is not implemented")
+				}
+				return ec.Directives.Validate(ctx, obj, directive0, rule)
 			}
-			it.Notes = data
+
+			tmp, err := directive1(ctx)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			if data, ok := tmp.(*string); ok {
+				it.Notes = data
+			} else if tmp == nil {
+				it.Notes = nil
+			} else {
+				err := fmt.Errorf(`unexpected type %T from directive, should be *string`, tmp)
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
 		case "routineId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("routineId"))
 			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
@@ -6828,18 +7151,58 @@ func (ec *executionContext) unmarshalInputUpsertContextInput(ctx context.Context
 			it.Category = data
 		case "key":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("key"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
+			directive0 := func(ctx context.Context) (any, error) { return ec.unmarshalNString2string(ctx, v) }
+
+			directive1 := func(ctx context.Context) (any, error) {
+				rule, err := ec.unmarshalNTextFieldRule2dayosᚋgraphᚋmodelᚐTextFieldRule(ctx, "SINGLE_LINE_SHORT")
+				if err != nil {
+					var zeroVal string
+					return zeroVal, err
+				}
+				if ec.Directives.Validate == nil {
+					var zeroVal string
+					return zeroVal, errors.New("directive validate is not implemented")
+				}
+				return ec.Directives.Validate(ctx, obj, directive0, rule)
 			}
-			it.Key = data
+
+			tmp, err := directive1(ctx)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			if data, ok := tmp.(string); ok {
+				it.Key = data
+			} else {
+				err := fmt.Errorf(`unexpected type %T from directive, should be string`, tmp)
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
 		case "value":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("value"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
+			directive0 := func(ctx context.Context) (any, error) { return ec.unmarshalNString2string(ctx, v) }
+
+			directive1 := func(ctx context.Context) (any, error) {
+				rule, err := ec.unmarshalNTextFieldRule2dayosᚋgraphᚋmodelᚐTextFieldRule(ctx, "PLAIN_TEXT")
+				if err != nil {
+					var zeroVal string
+					return zeroVal, err
+				}
+				if ec.Directives.Validate == nil {
+					var zeroVal string
+					return zeroVal, errors.New("directive validate is not implemented")
+				}
+				return ec.Directives.Validate(ctx, obj, directive0, rule)
 			}
-			it.Value = data
+
+			tmp, err := directive1(ctx)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			if data, ok := tmp.(string); ok {
+				it.Value = data
+			} else {
+				err := fmt.Errorf(`unexpected type %T from directive, should be string`, tmp)
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
 		}
 	}
 	return it, nil
@@ -8442,6 +8805,16 @@ func (ec *executionContext) marshalNTaskMessage2ᚖdayosᚋgraphᚋmodelᚐTaskM
 		return graphql.Null
 	}
 	return ec._TaskMessage(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNTextFieldRule2dayosᚋgraphᚋmodelᚐTextFieldRule(ctx context.Context, v any) (model.TextFieldRule, error) {
+	var res model.TextFieldRule
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNTextFieldRule2dayosᚋgraphᚋmodelᚐTextFieldRule(ctx context.Context, sel ast.SelectionSet, v model.TextFieldRule) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx context.Context, v any) (uuid.UUID, error) {
