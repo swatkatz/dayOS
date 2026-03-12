@@ -29,11 +29,21 @@ type TaskStore interface {
 	GetTask(ctx context.Context, id pgtype.UUID) (db.Task, error)
 	ListTasks(ctx context.Context, arg db.ListTasksParams) ([]db.Task, error)
 	ListSubtasks(ctx context.Context, parentID pgtype.UUID) ([]db.Task, error)
+	ListSchedulableTasks(ctx context.Context) ([]db.Task, error)
 	UpdateTask(ctx context.Context, arg db.UpdateTaskParams) (db.Task, error)
 	CompleteTask(ctx context.Context, id pgtype.UUID) (db.Task, error)
 	UncompleteTask(ctx context.Context, id pgtype.UUID) (db.Task, error)
 	DeleteTask(ctx context.Context, id pgtype.UUID) error
 	CountIncompleteSubtasks(ctx context.Context, parentID pgtype.UUID) (int64, error)
+}
+
+type TaskConversationStore interface {
+	CreateTaskConversation(ctx context.Context) (db.TaskConversation, error)
+	GetTaskConversation(ctx context.Context, id pgtype.UUID) (db.TaskConversation, error)
+	UpdateTaskConversationStatus(ctx context.Context, arg db.UpdateTaskConversationStatusParams) (db.TaskConversation, error)
+	LinkTaskConversationParent(ctx context.Context, arg db.LinkTaskConversationParentParams) (db.TaskConversation, error)
+	CreateTaskMessage(ctx context.Context, arg db.CreateTaskMessageParams) (db.TaskMessage, error)
+	GetTaskMessages(ctx context.Context, conversationID pgtype.UUID) ([]db.TaskMessage, error)
 }
 
 type DayPlanStore interface {

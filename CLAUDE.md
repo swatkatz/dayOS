@@ -109,12 +109,12 @@ Use `/write-spec <context-name>` to generate a spec.
 2. `specs/tasks.md` — Task CRUD, parent/subtask hierarchy, completion, deferred tracking -- done!
 3. `specs/routines.md` — Routine CRUD, day-of-week applicability -- done!
 4. `specs/context.md` — Context entry CRUD, active/inactive toggle -- done!
-5. `specs/validation.md` — Validation rules JSON, code generator, prompt safety, AI output validation
-6. `specs/auth.md` — Auth middleware, playground/introspection protection
+5. `specs/validation.md` — Validation rules JSON, code generator, prompt safety, AI output validation -- done!
+6. `specs/auth.md` — Auth middleware, playground/introspection protection -- done!
 
 **Wave 3 — Plans + AI**
 
-7. `specs/day-plans.md` — Plan storage, block skip/adjust, plan status (draft/accepted)
+7. `specs/day-plans.md` — Plan storage, block skip/adjust, plan status (draft/accepted) -- done!
 8. `specs/planner.md` — AI plan chat, task scoping chat, prompt construction, JSON parsing
 9. `specs/carry-over.md` — Skipped task review, deferred counting, actual_minutes computation
 

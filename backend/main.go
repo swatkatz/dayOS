@@ -11,6 +11,7 @@ import (
 	"dayos/auth"
 	"dayos/db"
 	"dayos/graph"
+	"dayos/planner"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
@@ -51,13 +52,18 @@ func main() {
 	}
 	defer pool.Close()
 
-	// Initialize sqlc queries and GraphQL server
+	// Initialize sqlc queries, planner, and GraphQL server
 	queries := db.New(pool)
+	aiClient := planner.NewAnthropicClient()
+	plannerSvc := planner.New(aiClient)
 	cfg := graph.Config{
 		Resolvers: &graph.Resolver{
-			RoutineStore: queries,
-			TaskStore:    queries,
-			DayPlanStore: queries,
+			RoutineStore:          queries,
+			TaskStore:             queries,
+			ContextStore:          queries,
+			DayPlanStore:          queries,
+			TaskConversationStore: queries,
+			Planner:               plannerSvc,
 		},
 	}
 	cfg.Directives.Validate = graph.ValidateDirective()

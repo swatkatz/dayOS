@@ -7,10 +7,13 @@ package graph
 
 import (
 	"context"
-	"dayos/db"
-	"dayos/graph/model"
 	"fmt"
 	"strings"
+	"time"
+
+	"dayos/db"
+	"dayos/graph/model"
+	"dayos/planner"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -181,7 +184,116 @@ func (r *mutationResolver) DeleteContext(ctx context.Context, id uuid.UUID) (boo
 
 // SendPlanMessage is the resolver for the sendPlanMessage field.
 func (r *mutationResolver) SendPlanMessage(ctx context.Context, date model.Date, message string) (*model.DayPlan, error) {
-	panic(fmt.Errorf("not implemented: SendPlanMessage - sendPlanMessage"))
+	pgDate := pgtype.Date{Time: date.Time, Valid: true}
+
+	// Check if plan exists
+	existingPlan, planErr := r.DayPlanStore.GetDayPlanByDate(ctx, pgDate)
+	isNewPlan := planErr != nil
+	isReplan := !isNewPlan && existingPlan.Status == "accepted"
+
+	// Create plan if it doesn't exist
+	if isNewPlan {
+		created, err := r.DayPlanStore.CreateDayPlan(ctx, db.CreateDayPlanParams{
+			PlanDate: pgDate,
+			Status:   "draft",
+			Blocks:   []byte("[]"),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("creating plan: %w", err)
+		}
+		existingPlan = created
+	}
+
+	// Gather context data for the prompt
+	input, err := r.buildPlanChatInput(ctx, existingPlan, message, date.Time, isReplan)
+	if err != nil {
+		return nil, fmt.Errorf("building plan input: %w", err)
+	}
+
+	// Call the planner
+	output, err := r.Planner.PlanChat(ctx, input)
+
+	// Store messages regardless of success/failure
+	// Insert user message
+	_, msgErr := r.DayPlanStore.CreatePlanMessage(ctx, db.CreatePlanMessageParams{
+		PlanID:  existingPlan.ID,
+		Role:    "user",
+		Content: message,
+	})
+	if msgErr != nil {
+		return nil, fmt.Errorf("storing user message: %w", msgErr)
+	}
+
+	// Store AI response(s)
+	if output != nil {
+		for _, raw := range output.RawResponses {
+			r.DayPlanStore.CreatePlanMessage(ctx, db.CreatePlanMessageParams{
+				PlanID:  existingPlan.ID,
+				Role:    "assistant",
+				Content: raw,
+			})
+		}
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert planner blocks to model blocks and marshal
+	modelBlocks := make([]*model.PlanBlock, len(output.Blocks))
+	for i, b := range output.Blocks {
+		block := &model.PlanBlock{
+			ID:       b.ID,
+			Time:     b.Time,
+			Duration: b.Duration,
+			Title:    b.Title,
+			Category: model.Category(strings.ToUpper(b.Category)),
+			Notes:    b.Notes,
+			Skipped:  b.Skipped,
+		}
+		if b.TaskID != nil && *b.TaskID != "" && *b.TaskID != "null" {
+			if uid, uerr := uuid.Parse(*b.TaskID); uerr == nil {
+				block.TaskID = &uid
+			}
+		}
+		if b.RoutineID != nil && *b.RoutineID != "" && *b.RoutineID != "null" {
+			if uid, uerr := uuid.Parse(*b.RoutineID); uerr == nil {
+				block.RoutineID = &uid
+			}
+		}
+		modelBlocks[i] = block
+	}
+
+	blocksData, err := marshalBlocks(modelBlocks)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling blocks: %w", err)
+	}
+
+	// Update blocks
+	updated, err := r.DayPlanStore.UpdateDayPlanBlocks(ctx, db.UpdateDayPlanBlocksParams{
+		ID:     existingPlan.ID,
+		Blocks: blocksData,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("updating blocks: %w", err)
+	}
+
+	// If replanning, set status back to draft
+	if isReplan {
+		updated, err = r.DayPlanStore.UpdateDayPlanStatus(ctx, db.UpdateDayPlanStatusParams{
+			ID:     existingPlan.ID,
+			Status: "draft",
+		})
+		if err != nil {
+			return nil, fmt.Errorf("resetting plan status: %w", err)
+		}
+	}
+
+	messages, err := r.DayPlanStore.GetPlanMessages(ctx, updated.ID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching plan messages: %w", err)
+	}
+	return dayPlanConverter.FromDB(updated, messages), nil
 }
 
 // AcceptPlan is the resolver for the acceptPlan field.
@@ -304,17 +416,165 @@ func (r *mutationResolver) UpdateBlock(ctx context.Context, planID uuid.UUID, bl
 
 // StartTaskConversation is the resolver for the startTaskConversation field.
 func (r *mutationResolver) StartTaskConversation(ctx context.Context, message string) (*model.TaskConversation, error) {
-	panic(fmt.Errorf("not implemented: StartTaskConversation - startTaskConversation"))
+	conv, err := r.TaskConversationStore.CreateTaskConversation(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("creating conversation: %w", err)
+	}
+
+	output, err := r.Planner.TaskChat(ctx, nil, message)
+	if err != nil {
+		return nil, fmt.Errorf("calling AI: %w", err)
+	}
+
+	// Store user message
+	r.TaskConversationStore.CreateTaskMessage(ctx, db.CreateTaskMessageParams{
+		ConversationID: conv.ID,
+		Role:           "user",
+		Content:        message,
+	})
+
+	// Store assistant response
+	r.TaskConversationStore.CreateTaskMessage(ctx, db.CreateTaskMessageParams{
+		ConversationID: conv.ID,
+		Role:           "assistant",
+		Content:        output.RawResponse,
+	})
+
+	messages, err := r.TaskConversationStore.GetTaskMessages(ctx, conv.ID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching messages: %w", err)
+	}
+	return taskConversationConverter.FromDB(conv, messages), nil
 }
 
 // SendTaskMessage is the resolver for the sendTaskMessage field.
 func (r *mutationResolver) SendTaskMessage(ctx context.Context, conversationID uuid.UUID, message string) (*model.TaskConversation, error) {
-	panic(fmt.Errorf("not implemented: SendTaskMessage - sendTaskMessage"))
+	pgID := uuidToPgtype(conversationID)
+	conv, err := r.TaskConversationStore.GetTaskConversation(ctx, pgID)
+	if err != nil {
+		return nil, fmt.Errorf("conversation not found: %w", err)
+	}
+
+	// Load history
+	existingMsgs, err := r.TaskConversationStore.GetTaskMessages(ctx, pgID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching messages: %w", err)
+	}
+	history := make([]planner.Message, len(existingMsgs))
+	for i, m := range existingMsgs {
+		history[i] = planner.Message{Role: m.Role, Content: m.Content}
+	}
+
+	output, err := r.Planner.TaskChat(ctx, history, message)
+	if err != nil {
+		return nil, fmt.Errorf("calling AI: %w", err)
+	}
+
+	// Store messages
+	r.TaskConversationStore.CreateTaskMessage(ctx, db.CreateTaskMessageParams{
+		ConversationID: pgID,
+		Role:           "user",
+		Content:        message,
+	})
+	r.TaskConversationStore.CreateTaskMessage(ctx, db.CreateTaskMessageParams{
+		ConversationID: pgID,
+		Role:           "assistant",
+		Content:        output.RawResponse,
+	})
+
+	messages, err := r.TaskConversationStore.GetTaskMessages(ctx, pgID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching messages: %w", err)
+	}
+	return taskConversationConverter.FromDB(conv, messages), nil
 }
 
 // ConfirmTaskBreakdown is the resolver for the confirmTaskBreakdown field.
 func (r *mutationResolver) ConfirmTaskBreakdown(ctx context.Context, conversationID uuid.UUID) ([]*model.Task, error) {
-	panic(fmt.Errorf("not implemented: ConfirmTaskBreakdown - confirmTaskBreakdown"))
+	pgID := uuidToPgtype(conversationID)
+
+	// Find the last assistant message
+	messages, err := r.TaskConversationStore.GetTaskMessages(ctx, pgID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching messages: %w", err)
+	}
+
+	var lastAssistant string
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == "assistant" {
+			lastAssistant = messages[i].Content
+			break
+		}
+	}
+	if lastAssistant == "" {
+		return nil, fmt.Errorf("No valid task proposal found. Continue the conversation first.")
+	}
+
+	proposal, err := planner.ParseTaskProposal(lastAssistant)
+	if err != nil || proposal == nil {
+		return nil, fmt.Errorf("No valid task proposal found. Continue the conversation first.")
+	}
+
+	// Create parent task
+	parentRow, err := r.TaskStore.CreateTask(ctx, db.CreateTaskParams{
+		Title:    proposal.Parent.Title,
+		Category: strings.ToLower(proposal.Parent.Category),
+		Priority: strings.ToLower(proposal.Parent.Priority),
+		IsRoutine: boolPtrVal(false),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("creating parent task: %w", err)
+	}
+
+	// Set deadline on parent if provided
+	if proposal.Parent.DeadlineType != nil && *proposal.Parent.DeadlineType != "null" && *proposal.Parent.DeadlineType != "" {
+		updateParams := db.UpdateTaskParams{ID: parentRow.ID}
+		dt := strings.ToLower(*proposal.Parent.DeadlineType)
+		updateParams.DeadlineType = &dt
+		if proposal.Parent.DeadlineDate != nil && *proposal.Parent.DeadlineDate != "null" {
+			t, err := time.Parse("2006-01-02", *proposal.Parent.DeadlineDate)
+			if err == nil {
+				updateParams.DeadlineDate = pgtype.Date{Time: t, Valid: true}
+			}
+		}
+		if proposal.Parent.DeadlineDays != nil {
+			v := int32(*proposal.Parent.DeadlineDays)
+			updateParams.DeadlineDays = &v
+		}
+		parentRow, _ = r.TaskStore.UpdateTask(ctx, updateParams)
+	}
+
+	result := []*model.Task{taskConverter.FromDB(parentRow)}
+
+	// Create subtasks
+	for _, sub := range proposal.Subtasks {
+		estMin := int32(sub.EstimatedMinutes)
+		subRow, err := r.TaskStore.CreateTask(ctx, db.CreateTaskParams{
+			Title:            sub.Title,
+			Category:         strings.ToLower(sub.Category),
+			Priority:         strings.ToLower(proposal.Parent.Priority),
+			ParentID:         parentRow.ID,
+			EstimatedMinutes: &estMin,
+			Notes:            sub.Notes,
+			IsRoutine:        boolPtrVal(false),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("creating subtask: %w", err)
+		}
+		result = append(result, taskConverter.FromDB(subRow))
+	}
+
+	// Link conversation to parent and mark completed
+	r.TaskConversationStore.LinkTaskConversationParent(ctx, db.LinkTaskConversationParentParams{
+		ID:           pgID,
+		ParentTaskID: parentRow.ID,
+	})
+	r.TaskConversationStore.UpdateTaskConversationStatus(ctx, db.UpdateTaskConversationStatusParams{
+		ID:     pgID,
+		Status: "completed",
+	})
+
+	return result, nil
 }
 
 // ResolveSkippedBlock is the resolver for the resolveSkippedBlock field.
@@ -420,7 +680,16 @@ func (r *queryResolver) RecentPlans(ctx context.Context, limit *int) ([]*model.D
 
 // TaskConversation is the resolver for the taskConversation field.
 func (r *queryResolver) TaskConversation(ctx context.Context, id uuid.UUID) (*model.TaskConversation, error) {
-	panic(fmt.Errorf("not implemented: TaskConversation - taskConversation"))
+	pgID := uuidToPgtype(id)
+	conv, err := r.TaskConversationStore.GetTaskConversation(ctx, pgID)
+	if err != nil {
+		return nil, nil
+	}
+	messages, err := r.TaskConversationStore.GetTaskMessages(ctx, pgID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching messages: %w", err)
+	}
+	return taskConversationConverter.FromDB(conv, messages), nil
 }
 
 // Mutation returns MutationResolver implementation.

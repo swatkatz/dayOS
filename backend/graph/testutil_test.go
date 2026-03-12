@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"dayos/db"
+	"dayos/planner"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -321,6 +322,24 @@ func (m *mockTaskStore) CountIncompleteSubtasks(_ context.Context, parentID pgty
 	return count, nil
 }
 
+func (m *mockTaskStore) ListSchedulableTasks(_ context.Context) ([]db.Task, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var result []db.Task
+	for _, id := range m.order {
+		t := m.tasks[id]
+		if t.IsCompleted != nil && *t.IsCompleted {
+			continue
+		}
+		// subtasks OR standalone with estimated_minutes
+		if t.ParentID.Valid || (!t.ParentID.Valid && t.EstimatedMinutes != nil) {
+			result = append(result, t)
+		}
+	}
+	return result, nil
+}
+
 // --- Mock ContextStore ---
 
 type mockContextStore struct {
@@ -554,6 +573,120 @@ func (m *mockDayPlanStore) CreatePlanMessage(_ context.Context, arg db.CreatePla
 	}
 	m.messages[arg.PlanID] = append(m.messages[arg.PlanID], msg)
 	return msg, nil
+}
+
+// --- Mock TaskConversationStore ---
+
+type mockTaskConversationStore struct {
+	mu            sync.Mutex
+	conversations map[pgtype.UUID]db.TaskConversation
+	messages      map[pgtype.UUID][]db.TaskMessage // keyed by conversation_id
+	order         []pgtype.UUID
+}
+
+func newMockTaskConversationStore() *mockTaskConversationStore {
+	return &mockTaskConversationStore{
+		conversations: make(map[pgtype.UUID]db.TaskConversation),
+		messages:      make(map[pgtype.UUID][]db.TaskMessage),
+	}
+}
+
+func (m *mockTaskConversationStore) CreateTaskConversation(_ context.Context) (db.TaskConversation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	id := pgtype.UUID{Bytes: uuid.New(), Valid: true}
+	c := db.TaskConversation{
+		ID:     id,
+		Status: "active",
+	}
+	m.conversations[id] = c
+	m.order = append(m.order, id)
+	return c, nil
+}
+
+func (m *mockTaskConversationStore) GetTaskConversation(_ context.Context, id pgtype.UUID) (db.TaskConversation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	c, ok := m.conversations[id]
+	if !ok {
+		return db.TaskConversation{}, fmt.Errorf("no rows in result set")
+	}
+	return c, nil
+}
+
+func (m *mockTaskConversationStore) UpdateTaskConversationStatus(_ context.Context, arg db.UpdateTaskConversationStatusParams) (db.TaskConversation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	c, ok := m.conversations[arg.ID]
+	if !ok {
+		return db.TaskConversation{}, fmt.Errorf("no rows in result set")
+	}
+	c.Status = arg.Status
+	m.conversations[arg.ID] = c
+	return c, nil
+}
+
+func (m *mockTaskConversationStore) LinkTaskConversationParent(_ context.Context, arg db.LinkTaskConversationParentParams) (db.TaskConversation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	c, ok := m.conversations[arg.ID]
+	if !ok {
+		return db.TaskConversation{}, fmt.Errorf("no rows in result set")
+	}
+	c.ParentTaskID = arg.ParentTaskID
+	m.conversations[arg.ID] = c
+	return c, nil
+}
+
+func (m *mockTaskConversationStore) CreateTaskMessage(_ context.Context, arg db.CreateTaskMessageParams) (db.TaskMessage, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	msg := db.TaskMessage{
+		ID:             pgtype.UUID{Bytes: uuid.New(), Valid: true},
+		ConversationID: arg.ConversationID,
+		Role:           arg.Role,
+		Content:        arg.Content,
+	}
+	m.messages[arg.ConversationID] = append(m.messages[arg.ConversationID], msg)
+	return msg, nil
+}
+
+func (m *mockTaskConversationStore) GetTaskMessages(_ context.Context, conversationID pgtype.UUID) ([]db.TaskMessage, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return m.messages[conversationID], nil
+}
+
+// --- Mock PlannerService ---
+
+type mockPlanner struct {
+	planChatFn func(ctx context.Context, input planner.PlanChatInput) (*planner.PlanChatOutput, error)
+	taskChatFn func(ctx context.Context, history []planner.Message, userMessage string) (*planner.TaskChatOutput, error)
+}
+
+func (m *mockPlanner) PlanChat(ctx context.Context, input planner.PlanChatInput) (*planner.PlanChatOutput, error) {
+	if m.planChatFn != nil {
+		return m.planChatFn(ctx, input)
+	}
+	return &planner.PlanChatOutput{
+		Blocks:       []planner.Block{},
+		RawResponses: []string{"[]"},
+	}, nil
+}
+
+func (m *mockPlanner) TaskChat(ctx context.Context, history []planner.Message, userMessage string) (*planner.TaskChatOutput, error) {
+	if m.taskChatFn != nil {
+		return m.taskChatFn(ctx, history, userMessage)
+	}
+	return &planner.TaskChatOutput{
+		RawResponse: `{"status": "question", "message": "What's the scope?"}`,
+	}, nil
 }
 
 // --- Factories ---
