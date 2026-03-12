@@ -120,7 +120,7 @@ Use `/write-spec <context-name>` to generate a spec.
 
 **Wave 4 — Frontend**
 
-10. `specs/frontend-shell.md` — App shell, routing, Apollo + Tailwind setup, dark theme, auth
+10. `specs/frontend-shell.md` — App shell, routing, Apollo + Tailwind setup, dark theme, auth -- done!
 11. `specs/frontend-today.md` — Today page, plan chat interface, block view, skip/adjust, replan
 12. `specs/frontend-backlog.md` — Task backlog, parent/subtask grouping, "Scope with AI" chat
 13. `specs/frontend-manage.md` — Routines + Context + History pages
