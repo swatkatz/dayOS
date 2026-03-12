@@ -91,6 +91,9 @@ func (r *mutationResolver) buildPlanChatInput(ctx context.Context, plan db.DayPl
 	}
 	input.Tasks = planner.FormatTaskBacklog(taskData)
 
+	// Gather carry-over tasks from most recent past plan
+	input.CarryOverTasks = r.getCarryOverTasks(ctx, planDate)
+
 	// Load conversation history
 	existingMessages, err := r.DayPlanStore.GetPlanMessages(ctx, plan.ID)
 	if err != nil {

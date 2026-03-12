@@ -322,6 +322,25 @@ func (m *mockTaskStore) CountIncompleteSubtasks(_ context.Context, parentID pgty
 	return count, nil
 }
 
+func (m *mockTaskStore) IncrementTimesDeferred(_ context.Context, id pgtype.UUID) (db.Task, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	t, ok := m.tasks[id]
+	if !ok {
+		return db.Task{}, fmt.Errorf("no rows in result set")
+	}
+	if t.TimesDeferred == nil {
+		zero := int32(0)
+		t.TimesDeferred = &zero
+	}
+	v := *t.TimesDeferred + 1
+	t.TimesDeferred = &v
+	t.LastDeferredAt = pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
+	m.tasks[id] = t
+	return t, nil
+}
+
 func (m *mockTaskStore) ListSchedulableTasks(_ context.Context) ([]db.Task, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

@@ -35,6 +35,7 @@ type TaskStore interface {
 	UncompleteTask(ctx context.Context, id pgtype.UUID) (db.Task, error)
 	DeleteTask(ctx context.Context, id pgtype.UUID) error
 	CountIncompleteSubtasks(ctx context.Context, parentID pgtype.UUID) (int64, error)
+	IncrementTimesDeferred(ctx context.Context, id pgtype.UUID) (db.Task, error)
 }
 
 type TaskConversationStore interface {

@@ -115,7 +115,7 @@ Use `/write-spec <context-name>` to generate a spec.
 **Wave 3 — Plans + AI**
 
 7. `specs/day-plans.md` — Plan storage, block skip/adjust, plan status (draft/accepted) -- done!
-8. `specs/planner.md` — AI plan chat, task scoping chat, prompt construction, JSON parsing
+8. `specs/planner.md` — AI plan chat, task scoping chat, prompt construction, JSON parsing -- done!
 9. `specs/carry-over.md` — Skipped task review, deferred counting, actual_minutes computation
 
 **Wave 4 — Frontend**

@@ -7,13 +7,12 @@ package graph
 
 import (
 	"context"
-	"fmt"
-	"strings"
-	"time"
-
 	"dayos/db"
 	"dayos/graph/model"
 	"dayos/planner"
+	"fmt"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -517,9 +516,9 @@ func (r *mutationResolver) ConfirmTaskBreakdown(ctx context.Context, conversatio
 
 	// Create parent task
 	parentRow, err := r.TaskStore.CreateTask(ctx, db.CreateTaskParams{
-		Title:    proposal.Parent.Title,
-		Category: strings.ToLower(proposal.Parent.Category),
-		Priority: strings.ToLower(proposal.Parent.Priority),
+		Title:     proposal.Parent.Title,
+		Category:  strings.ToLower(proposal.Parent.Category),
+		Priority:  strings.ToLower(proposal.Parent.Priority),
 		IsRoutine: boolPtrVal(false),
 	})
 	if err != nil {
@@ -579,7 +578,42 @@ func (r *mutationResolver) ConfirmTaskBreakdown(ctx context.Context, conversatio
 
 // ResolveSkippedBlock is the resolver for the resolveSkippedBlock field.
 func (r *mutationResolver) ResolveSkippedBlock(ctx context.Context, planID uuid.UUID, blockID string, intentional bool) (bool, error) {
-	panic(fmt.Errorf("not implemented: ResolveSkippedBlock - resolveSkippedBlock"))
+	plan, err := r.DayPlanStore.GetDayPlanByID(ctx, uuidToPgtype(planID))
+	if err != nil {
+		return false, fmt.Errorf("plan not found: %w", err)
+	}
+
+	blocks := parseBlocks(plan.Blocks)
+	var found *model.PlanBlock
+	for _, b := range blocks {
+		if b.ID == blockID {
+			found = b
+			break
+		}
+	}
+	if found == nil {
+		return false, fmt.Errorf("Block not found")
+	}
+	if !found.Skipped {
+		return false, fmt.Errorf("Block is not skipped")
+	}
+
+	// No task_id means nothing to defer (e.g. routine block)
+	if found.TaskID == nil {
+		return true, nil
+	}
+
+	// Intentional skip — no task modifications
+	if intentional {
+		return true, nil
+	}
+
+	// Unintentional skip — increment times_deferred
+	_, err = r.TaskStore.IncrementTimesDeferred(ctx, uuidToPgtype(*found.TaskID))
+	if err != nil {
+		return false, fmt.Errorf("incrementing times deferred: %w", err)
+	}
+	return true, nil
 }
 
 // Tasks is the resolver for the tasks field.
