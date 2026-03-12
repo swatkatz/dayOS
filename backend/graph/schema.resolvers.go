@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // CreateTask is the resolver for the createTask field.
@@ -185,17 +186,120 @@ func (r *mutationResolver) SendPlanMessage(ctx context.Context, date model.Date,
 
 // AcceptPlan is the resolver for the acceptPlan field.
 func (r *mutationResolver) AcceptPlan(ctx context.Context, date model.Date) (*model.DayPlan, error) {
-	panic(fmt.Errorf("not implemented: AcceptPlan - acceptPlan"))
+	pgDate := pgtype.Date{Time: date.Time, Valid: true}
+	plan, err := r.DayPlanStore.GetDayPlanByDate(ctx, pgDate)
+	if err != nil {
+		return nil, fmt.Errorf("No plan exists for this date")
+	}
+	if plan.Status == "accepted" {
+		messages, err := r.DayPlanStore.GetPlanMessages(ctx, plan.ID)
+		if err != nil {
+			return nil, fmt.Errorf("fetching plan messages: %w", err)
+		}
+		return dayPlanConverter.FromDB(plan, messages), nil
+	}
+	updated, err := r.DayPlanStore.UpdateDayPlanStatus(ctx, db.UpdateDayPlanStatusParams{
+		ID:     plan.ID,
+		Status: "accepted",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("accepting plan: %w", err)
+	}
+	messages, err := r.DayPlanStore.GetPlanMessages(ctx, updated.ID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching plan messages: %w", err)
+	}
+	return dayPlanConverter.FromDB(updated, messages), nil
 }
 
 // SkipBlock is the resolver for the skipBlock field.
 func (r *mutationResolver) SkipBlock(ctx context.Context, planID uuid.UUID, blockID string) (*model.DayPlan, error) {
-	panic(fmt.Errorf("not implemented: SkipBlock - skipBlock"))
+	plan, err := r.DayPlanStore.GetDayPlanByID(ctx, uuidToPgtype(planID))
+	if err != nil {
+		return nil, fmt.Errorf("plan not found: %w", err)
+	}
+	if plan.Status != "accepted" {
+		return nil, fmt.Errorf("Can only skip blocks on an accepted plan")
+	}
+	blocks := parseBlocks(plan.Blocks)
+	found := false
+	for _, b := range blocks {
+		if b.ID == blockID {
+			b.Skipped = true
+			found = true
+		}
+	}
+	if !found {
+		return nil, fmt.Errorf("Block not found")
+	}
+	data, err := marshalBlocks(blocks)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling blocks: %w", err)
+	}
+	updated, err := r.DayPlanStore.UpdateDayPlanBlocks(ctx, db.UpdateDayPlanBlocksParams{
+		ID:     plan.ID,
+		Blocks: data,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("updating blocks: %w", err)
+	}
+	messages, err := r.DayPlanStore.GetPlanMessages(ctx, updated.ID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching plan messages: %w", err)
+	}
+	return dayPlanConverter.FromDB(updated, messages), nil
 }
 
 // UpdateBlock is the resolver for the updateBlock field.
 func (r *mutationResolver) UpdateBlock(ctx context.Context, planID uuid.UUID, blockID string, input model.UpdateBlockInput) (*model.DayPlan, error) {
-	panic(fmt.Errorf("not implemented: UpdateBlock - updateBlock"))
+	if input.Duration != nil && *input.Duration <= 0 {
+		return nil, fmt.Errorf("Duration must be positive")
+	}
+	plan, err := r.DayPlanStore.GetDayPlanByID(ctx, uuidToPgtype(planID))
+	if err != nil {
+		return nil, fmt.Errorf("plan not found: %w", err)
+	}
+	if plan.Status != "accepted" {
+		return nil, fmt.Errorf("Can only update blocks on an accepted plan")
+	}
+	blocks := parseBlocks(plan.Blocks)
+	found := false
+	for _, b := range blocks {
+		if b.ID == blockID {
+			found = true
+			if input.Skipped != nil {
+				b.Skipped = *input.Skipped
+			}
+			if input.Time != nil {
+				b.Time = *input.Time
+			}
+			if input.Duration != nil {
+				b.Duration = *input.Duration
+			}
+			if input.Notes != nil {
+				b.Notes = input.Notes
+			}
+		}
+	}
+	if !found {
+		return nil, fmt.Errorf("Block not found")
+	}
+	data, err := marshalBlocks(blocks)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling blocks: %w", err)
+	}
+	updated, err := r.DayPlanStore.UpdateDayPlanBlocks(ctx, db.UpdateDayPlanBlocksParams{
+		ID:     plan.ID,
+		Blocks: data,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("updating blocks: %w", err)
+	}
+	messages, err := r.DayPlanStore.GetPlanMessages(ctx, updated.ID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching plan messages: %w", err)
+	}
+	return dayPlanConverter.FromDB(updated, messages), nil
 }
 
 // StartTaskConversation is the resolver for the startTaskConversation field.
@@ -281,12 +385,37 @@ func (r *queryResolver) ContextEntries(ctx context.Context, category *model.Cont
 
 // DayPlan is the resolver for the dayPlan field.
 func (r *queryResolver) DayPlan(ctx context.Context, date model.Date) (*model.DayPlan, error) {
-	panic(fmt.Errorf("not implemented: DayPlan - dayPlan"))
+	pgDate := pgtype.Date{Time: date.Time, Valid: true}
+	plan, err := r.DayPlanStore.GetDayPlanByDate(ctx, pgDate)
+	if err != nil {
+		return nil, nil
+	}
+	messages, err := r.DayPlanStore.GetPlanMessages(ctx, plan.ID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching plan messages: %w", err)
+	}
+	return dayPlanConverter.FromDB(plan, messages), nil
 }
 
 // RecentPlans is the resolver for the recentPlans field.
 func (r *queryResolver) RecentPlans(ctx context.Context, limit *int) ([]*model.DayPlan, error) {
-	panic(fmt.Errorf("not implemented: RecentPlans - recentPlans"))
+	l := int32(7)
+	if limit != nil {
+		l = int32(*limit)
+	}
+	plans, err := r.DayPlanStore.RecentPlans(ctx, l)
+	if err != nil {
+		return nil, fmt.Errorf("fetching recent plans: %w", err)
+	}
+	result := make([]*model.DayPlan, len(plans))
+	for i, p := range plans {
+		messages, err := r.DayPlanStore.GetPlanMessages(ctx, p.ID)
+		if err != nil {
+			return nil, fmt.Errorf("fetching plan messages: %w", err)
+		}
+		result[i] = dayPlanConverter.FromDB(p, messages)
+	}
+	return result, nil
 }
 
 // TaskConversation is the resolver for the taskConversation field.

@@ -35,3 +35,14 @@ type TaskStore interface {
 	DeleteTask(ctx context.Context, id pgtype.UUID) error
 	CountIncompleteSubtasks(ctx context.Context, parentID pgtype.UUID) (int64, error)
 }
+
+type DayPlanStore interface {
+	GetDayPlanByDate(ctx context.Context, planDate pgtype.Date) (db.DayPlan, error)
+	GetDayPlanByID(ctx context.Context, id pgtype.UUID) (db.DayPlan, error)
+	CreateDayPlan(ctx context.Context, arg db.CreateDayPlanParams) (db.DayPlan, error)
+	UpdateDayPlanBlocks(ctx context.Context, arg db.UpdateDayPlanBlocksParams) (db.DayPlan, error)
+	UpdateDayPlanStatus(ctx context.Context, arg db.UpdateDayPlanStatusParams) (db.DayPlan, error)
+	RecentPlans(ctx context.Context, limit int32) ([]db.DayPlan, error)
+	GetPlanMessages(ctx context.Context, planID pgtype.UUID) ([]db.PlanMessage, error)
+	CreatePlanMessage(ctx context.Context, arg db.CreatePlanMessageParams) (db.PlanMessage, error)
+}

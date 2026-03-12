@@ -57,6 +57,7 @@ func main() {
 		Resolvers: &graph.Resolver{
 			RoutineStore: queries,
 			TaskStore:    queries,
+			DayPlanStore: queries,
 		},
 	}
 	cfg.Directives.Validate = graph.ValidateDirective()

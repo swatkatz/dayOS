@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"dayos/db"
 
@@ -425,6 +426,136 @@ func (m *mockContextStore) DeleteContextEntry(_ context.Context, id pgtype.UUID)
 	return nil
 }
 
+// --- Mock DayPlanStore ---
+
+type mockDayPlanStore struct {
+	mu       sync.Mutex
+	plans    map[pgtype.UUID]db.DayPlan
+	messages map[pgtype.UUID][]db.PlanMessage // keyed by plan_id
+	order    []pgtype.UUID
+}
+
+func newMockDayPlanStore() *mockDayPlanStore {
+	return &mockDayPlanStore{
+		plans:    make(map[pgtype.UUID]db.DayPlan),
+		messages: make(map[pgtype.UUID][]db.PlanMessage),
+	}
+}
+
+func (m *mockDayPlanStore) GetDayPlanByDate(_ context.Context, planDate pgtype.Date) (db.DayPlan, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, id := range m.order {
+		p := m.plans[id]
+		if p.PlanDate.Time.Equal(planDate.Time) {
+			return p, nil
+		}
+	}
+	return db.DayPlan{}, fmt.Errorf("no rows in result set")
+}
+
+func (m *mockDayPlanStore) GetDayPlanByID(_ context.Context, id pgtype.UUID) (db.DayPlan, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	p, ok := m.plans[id]
+	if !ok {
+		return db.DayPlan{}, fmt.Errorf("no rows in result set")
+	}
+	return p, nil
+}
+
+func (m *mockDayPlanStore) CreateDayPlan(_ context.Context, arg db.CreateDayPlanParams) (db.DayPlan, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check unique constraint on plan_date
+	for _, id := range m.order {
+		p := m.plans[id]
+		if p.PlanDate.Time.Equal(arg.PlanDate.Time) {
+			return db.DayPlan{}, fmt.Errorf("duplicate key value violates unique constraint")
+		}
+	}
+
+	id := pgtype.UUID{Bytes: uuid.New(), Valid: true}
+	p := db.DayPlan{
+		ID:       id,
+		PlanDate: arg.PlanDate,
+		Status:   arg.Status,
+		Blocks:   arg.Blocks,
+	}
+	m.plans[id] = p
+	m.order = append(m.order, id)
+	return p, nil
+}
+
+func (m *mockDayPlanStore) UpdateDayPlanBlocks(_ context.Context, arg db.UpdateDayPlanBlocksParams) (db.DayPlan, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	p, ok := m.plans[arg.ID]
+	if !ok {
+		return db.DayPlan{}, fmt.Errorf("no rows in result set")
+	}
+	p.Blocks = arg.Blocks
+	m.plans[arg.ID] = p
+	return p, nil
+}
+
+func (m *mockDayPlanStore) UpdateDayPlanStatus(_ context.Context, arg db.UpdateDayPlanStatusParams) (db.DayPlan, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	p, ok := m.plans[arg.ID]
+	if !ok {
+		return db.DayPlan{}, fmt.Errorf("no rows in result set")
+	}
+	p.Status = arg.Status
+	m.plans[arg.ID] = p
+	return p, nil
+}
+
+func (m *mockDayPlanStore) RecentPlans(_ context.Context, limit int32) ([]db.DayPlan, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Collect all plans and sort by plan_date DESC
+	plans := make([]db.DayPlan, 0, len(m.plans))
+	for _, id := range m.order {
+		plans = append(plans, m.plans[id])
+	}
+	sort.Slice(plans, func(i, j int) bool {
+		return plans[i].PlanDate.Time.After(plans[j].PlanDate.Time)
+	})
+	if int(limit) < len(plans) {
+		plans = plans[:limit]
+	}
+	return plans, nil
+}
+
+func (m *mockDayPlanStore) GetPlanMessages(_ context.Context, planID pgtype.UUID) ([]db.PlanMessage, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	msgs := m.messages[planID]
+	return msgs, nil
+}
+
+func (m *mockDayPlanStore) CreatePlanMessage(_ context.Context, arg db.CreatePlanMessageParams) (db.PlanMessage, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	msg := db.PlanMessage{
+		ID:      pgtype.UUID{Bytes: uuid.New(), Valid: true},
+		PlanID:  arg.PlanID,
+		Role:    arg.Role,
+		Content: arg.Content,
+	}
+	m.messages[arg.PlanID] = append(m.messages[arg.PlanID], msg)
+	return msg, nil
+}
+
 // --- Factories ---
 
 func factoryRoutine(store *mockRoutineStore, title string, overrides ...func(*db.UpsertRoutineParams)) db.Routine {
@@ -465,6 +596,34 @@ func seedContextEntries(store *mockContextStore) {
 	factoryContextEntry(store, "constraints", "evening_window", "Light evening window ~20:00-22:00.")
 	factoryContextEntry(store, "equipment", "kitchen", "Full Indian kitchen setup.")
 	factoryContextEntry(store, "preferences", "planning_style", "Time-blocked days.")
+}
+
+func factoryDayPlan(store *mockDayPlanStore, dateStr string, status string, blocksJSON []byte) db.DayPlan {
+	t, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		panic(fmt.Sprintf("factoryDayPlan: bad date %q: %v", dateStr, err))
+	}
+	p, err := store.CreateDayPlan(context.Background(), db.CreateDayPlanParams{
+		PlanDate: pgtype.Date{Time: t, Valid: true},
+		Status:   status,
+		Blocks:   blocksJSON,
+	})
+	if err != nil {
+		panic(fmt.Sprintf("factoryDayPlan: %v", err))
+	}
+	return p
+}
+
+func factoryPlanMessage(store *mockDayPlanStore, planID pgtype.UUID, role, content string) db.PlanMessage {
+	msg, err := store.CreatePlanMessage(context.Background(), db.CreatePlanMessageParams{
+		PlanID:  planID,
+		Role:    role,
+		Content: content,
+	})
+	if err != nil {
+		panic(fmt.Sprintf("factoryPlanMessage: %v", err))
+	}
+	return msg
 }
 
 func factoryTask(store *mockTaskStore, title string, overrides ...func(*db.CreateTaskParams)) db.Task {
