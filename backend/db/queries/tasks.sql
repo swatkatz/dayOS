@@ -11,7 +11,6 @@ SELECT * FROM tasks WHERE id = $1;
 SELECT * FROM tasks
 WHERE (sqlc.narg('category')::TEXT IS NULL OR category = sqlc.narg('category'))
   AND (sqlc.narg('include_completed')::BOOLEAN = true OR is_completed = false)
-  AND parent_id IS NULL
 ORDER BY
   CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END,
   created_at DESC;

@@ -17,7 +17,7 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY)
 }
 
-const httpLink = new HttpLink({ uri: '/graphql' })
+const httpLink = new HttpLink({ uri: import.meta.env.VITE_GRAPHQL_URL || '/graphql' })
 
 const authLink = new SetContextLink(({ headers }) => {
   const token = getToken()

@@ -53,19 +53,18 @@ const PRIORITY_COLORS: Record<string, string> = {
   LOW: 'text-text-secondary',
 }
 
+const CATEGORIES = ['JOB', 'INTERVIEW', 'PROJECT', 'MEAL', 'BABY', 'EXERCISE', 'ADMIN']
+const PRIORITIES = ['HIGH', 'MEDIUM', 'LOW']
+
 export default function TaskRow({ task, isSubtask }: Props) {
+  const [expanded, setExpanded] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState(task.title)
 
-  const [completeTask] = useMutation(COMPLETE_TASK, {
-    refetchQueries: [{ query: GET_TASKS, variables: { includeCompleted: true } }],
-  })
-  const [updateTask] = useMutation(UPDATE_TASK, {
-    refetchQueries: [{ query: GET_TASKS, variables: { includeCompleted: true } }],
-  })
-  const [deleteTask] = useMutation(DELETE_TASK, {
-    refetchQueries: [{ query: GET_TASKS, variables: { includeCompleted: true } }],
-  })
+  const refetchOpts = { refetchQueries: [{ query: GET_TASKS, variables: { includeCompleted: true } }] }
+  const [completeTask] = useMutation(COMPLETE_TASK, refetchOpts)
+  const [updateTask] = useMutation(UPDATE_TASK, refetchOpts)
+  const [deleteTask] = useMutation(DELETE_TASK, refetchOpts)
 
   const handleComplete = async () => {
     if (task.isCompleted) {
@@ -92,84 +91,212 @@ export default function TaskRow({ task, isSubtask }: Props) {
     }
   }
 
+  const handleFieldUpdate = async (input: Record<string, unknown>) => {
+    await updateTask({ variables: { id: task.id, input } })
+  }
+
   const color = CATEGORY_COLORS[task.category] || '#6b7280'
   const deadline = formatDeadline(task)
 
   return (
-    <div
-      className={`flex items-center gap-3 p-3 rounded-lg bg-bg-surface mb-2 group ${
-        isSubtask ? 'ml-6 text-sm' : ''
-      }`}
-      style={{ borderLeft: `4px solid ${color}` }}
-    >
-      {/* Checkbox */}
-      <button
-        onClick={handleComplete}
-        className={`w-5 h-5 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
-          task.isCompleted
-            ? 'bg-accent border-accent text-black'
-            : 'border-border-default hover:border-accent'
-        }`}
+    <div className={`mb-2 ${isSubtask ? 'ml-6' : ''}`}>
+      {/* Main row */}
+      <div
+        className={`flex items-center gap-3 p-3 rounded-lg bg-bg-surface group ${isSubtask ? 'text-sm' : ''}`}
+        style={{ borderLeft: `4px solid ${color}` }}
       >
-        {task.isCompleted && <span className="text-xs">✓</span>}
-      </button>
+        {/* Checkbox */}
+        <button
+          onClick={handleComplete}
+          className={`w-5 h-5 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
+            task.isCompleted
+              ? 'bg-accent border-accent text-black'
+              : 'border-border-default hover:border-accent'
+          }`}
+        >
+          {task.isCompleted && <span className="text-xs">✓</span>}
+        </button>
 
-      {/* Title */}
-      <div className="flex-1 min-w-0">
-        {editingTitle ? (
-          <input
-            value={titleDraft}
-            onChange={(e) => setTitleDraft(e.target.value)}
-            onBlur={handleTitleSave}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleTitleSave()
-              if (e.key === 'Escape') { setEditingTitle(false); setTitleDraft(task.title) }
-            }}
-            autoFocus
-            className="w-full bg-transparent border-b border-accent text-text-primary outline-none"
-          />
-        ) : (
-          <span
-            onClick={() => setEditingTitle(true)}
-            className={`cursor-pointer ${task.isCompleted ? 'text-text-secondary line-through' : 'text-text-primary'}`}
-          >
-            {task.title}
+        {/* Title */}
+        <div className="flex-1 min-w-0">
+          {editingTitle ? (
+            <input
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onBlur={handleTitleSave}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleTitleSave()
+                if (e.key === 'Escape') { setEditingTitle(false); setTitleDraft(task.title) }
+              }}
+              autoFocus
+              className="w-full bg-transparent border-b border-accent text-text-primary outline-none"
+            />
+          ) : (
+            <span
+              onClick={() => setEditingTitle(true)}
+              className={`cursor-pointer ${task.isCompleted ? 'text-text-secondary line-through' : 'text-text-primary'}`}
+            >
+              {task.title}
+            </span>
+          )}
+        </div>
+
+        {/* Deferred indicator */}
+        {task.timesDeferred >= 2 && (
+          <span className="text-amber-400 text-xs flex-shrink-0">deferred {task.timesDeferred}x</span>
+        )}
+
+        {/* Priority */}
+        <span className={`text-xs flex-shrink-0 ${PRIORITY_COLORS[task.priority] || ''}`}>
+          {task.priority}
+        </span>
+
+        {/* Progress (subtask/standalone) */}
+        {task.estimatedMinutes != null && (
+          <span className="text-text-secondary text-xs flex-shrink-0">
+            {formatMinutes(task.actualMinutes)} / {formatMinutes(task.estimatedMinutes)}
           </span>
         )}
+
+        {/* Deadline */}
+        {deadline && (
+          <span className={`text-xs flex-shrink-0 ${deadline.overdue ? 'text-red-400' : 'text-text-secondary'}`}>
+            {deadline.text}
+          </span>
+        )}
+
+        {/* Expand */}
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-text-secondary hover:text-text-primary opacity-0 group-hover:opacity-100 transition-all text-sm flex-shrink-0"
+          title="Edit"
+        >
+          {expanded ? '▲' : '▼'}
+        </button>
+
+        {/* Delete */}
+        <button
+          onClick={handleDelete}
+          className="text-text-secondary hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all text-sm flex-shrink-0"
+          title="Delete"
+        >
+          🗑
+        </button>
       </div>
 
-      {/* Deferred indicator */}
-      {task.timesDeferred >= 2 && (
-        <span className="text-amber-400 text-xs flex-shrink-0">deferred {task.timesDeferred}x</span>
+      {/* Expanded edit panel */}
+      {expanded && (
+        <div className="bg-bg-surface rounded-b-lg px-4 py-3 border-t border-border-default space-y-3 text-sm" style={{ borderLeft: `4px solid ${color}` }}>
+          <div className="flex gap-4 flex-wrap">
+            {/* Category */}
+            <label className="flex flex-col gap-1">
+              <span className="text-text-secondary text-xs">Category</span>
+              <select
+                value={task.category}
+                onChange={(e) => handleFieldUpdate({ category: e.target.value })}
+                className="bg-bg-primary border border-border-default rounded px-2 py-1 text-text-primary"
+              >
+                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+
+            {/* Priority */}
+            <label className="flex flex-col gap-1">
+              <span className="text-text-secondary text-xs">Priority</span>
+              <select
+                value={task.priority}
+                onChange={(e) => handleFieldUpdate({ priority: e.target.value })}
+                className="bg-bg-primary border border-border-default rounded px-2 py-1 text-text-primary"
+              >
+                {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </label>
+
+            {/* Estimated minutes */}
+            <label className="flex flex-col gap-1">
+              <span className="text-text-secondary text-xs">Est. minutes</span>
+              <input
+                type="number"
+                defaultValue={task.estimatedMinutes ?? ''}
+                onBlur={(e) => {
+                  const v = parseInt(e.target.value)
+                  if (!isNaN(v) && v > 0) handleFieldUpdate({ estimatedMinutes: v })
+                }}
+                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                className="bg-bg-primary border border-border-default rounded px-2 py-1 text-text-primary w-20"
+              />
+            </label>
+          </div>
+
+          {/* Deadline row */}
+          <div className="flex gap-4 flex-wrap items-end">
+            <label className="flex flex-col gap-1">
+              <span className="text-text-secondary text-xs">Deadline type</span>
+              <select
+                value={task.deadlineType ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value
+                  if (val === '') {
+                    handleFieldUpdate({ deadlineType: null, deadlineDate: null, deadlineDays: null })
+                  } else {
+                    handleFieldUpdate({ deadlineType: val })
+                  }
+                }}
+                className="bg-bg-primary border border-border-default rounded px-2 py-1 text-text-primary"
+              >
+                <option value="">None</option>
+                <option value="HARD">Hard date</option>
+                <option value="HORIZON">Horizon</option>
+              </select>
+            </label>
+
+            {task.deadlineType === 'HARD' && (
+              <label className="flex flex-col gap-1">
+                <span className="text-text-secondary text-xs">Date</span>
+                <input
+                  type="date"
+                  defaultValue={task.deadlineDate ?? ''}
+                  onBlur={(e) => {
+                    if (e.target.value) handleFieldUpdate({ deadlineDate: e.target.value })
+                  }}
+                  className="bg-bg-primary border border-border-default rounded px-2 py-1 text-text-primary"
+                />
+              </label>
+            )}
+
+            {task.deadlineType === 'HORIZON' && (
+              <label className="flex flex-col gap-1">
+                <span className="text-text-secondary text-xs">Within N days</span>
+                <input
+                  type="number"
+                  defaultValue={task.deadlineDays ?? ''}
+                  onBlur={(e) => {
+                    const v = parseInt(e.target.value)
+                    if (!isNaN(v) && v > 0) handleFieldUpdate({ deadlineDays: v })
+                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                  className="bg-bg-primary border border-border-default rounded px-2 py-1 text-text-primary w-20"
+                />
+              </label>
+            )}
+          </div>
+
+          {/* Notes */}
+          <label className="flex flex-col gap-1">
+            <span className="text-text-secondary text-xs">Notes</span>
+            <textarea
+              defaultValue={task.notes ?? ''}
+              onBlur={(e) => {
+                const val = e.target.value.trim()
+                if (val !== (task.notes ?? '')) handleFieldUpdate({ notes: val || null })
+              }}
+              rows={2}
+              className="bg-bg-primary border border-border-default rounded px-2 py-1 text-text-primary resize-y"
+              placeholder="Add notes..."
+            />
+          </label>
+        </div>
       )}
-
-      {/* Priority */}
-      <span className={`text-xs flex-shrink-0 ${PRIORITY_COLORS[task.priority] || ''}`}>
-        {task.priority}
-      </span>
-
-      {/* Progress (subtask/standalone) */}
-      {task.estimatedMinutes != null && (
-        <span className="text-text-secondary text-xs flex-shrink-0">
-          {formatMinutes(task.actualMinutes)} / {formatMinutes(task.estimatedMinutes)}
-        </span>
-      )}
-
-      {/* Deadline */}
-      {deadline && (
-        <span className={`text-xs flex-shrink-0 ${deadline.overdue ? 'text-red-400' : 'text-text-secondary'}`}>
-          {deadline.text}
-        </span>
-      )}
-
-      {/* Delete */}
-      <button
-        onClick={handleDelete}
-        className="text-text-secondary hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all text-sm flex-shrink-0"
-        title="Delete"
-      >
-        🗑
-      </button>
     </div>
   )
 }

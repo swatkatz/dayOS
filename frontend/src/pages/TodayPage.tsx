@@ -129,9 +129,9 @@ export default function TodayPage() {
     }
   }
 
-  const handleAccept = async () => {
+  const handleAccept = async (editedBlocks?: Block[]) => {
     try {
-      await acceptPlan({
+      const result = await acceptPlan({
         variables: { date },
         update: (cache, { data }) => {
           if (data?.acceptPlan) {
@@ -146,6 +146,22 @@ export default function TodayPage() {
           }
         },
       })
+
+      // Patch any blocks that were manually edited in the preview
+      if (editedBlocks && result.data?.acceptPlan) {
+        const planId = result.data.acceptPlan.id
+        const original = new Map(blocks.map((b) => [b.id, b]))
+        for (const edited of editedBlocks) {
+          const orig = original.get(edited.id)
+          if (!orig) {
+            // New block added manually — update with all fields
+            await updateBlock({ variables: { planId, blockId: edited.id, input: { time: edited.time, duration: edited.duration, notes: edited.notes } } })
+          } else if (edited.time !== orig.time || edited.duration !== orig.duration || edited.title !== orig.title || edited.notes !== orig.notes || edited.category !== orig.category) {
+            await updateBlock({ variables: { planId, blockId: edited.id, input: { time: edited.time, duration: edited.duration, notes: edited.notes } } })
+          }
+        }
+      }
+
       setReplanning(false)
     } catch {
       // Accept error

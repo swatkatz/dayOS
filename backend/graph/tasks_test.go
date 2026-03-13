@@ -318,6 +318,52 @@ func TestCreateTask_WithRoutine(t *testing.T) {
 	}
 }
 
+// Test: Tasks query populates subtasks on parent tasks
+func TestTasks_SubtasksPopulated(t *testing.T) {
+	store := newMockTaskStore()
+	r := newTaskResolver(store)
+	ctx := context.Background()
+
+	parent := factoryTask(store, "Interview prep", func(p *db.CreateTaskParams) {
+		p.EstimatedMinutes = nil
+	})
+	parentID := uuidToPgtypeTest(parent.ID)
+	factoryTask(store, "LC easy problems", func(p *db.CreateTaskParams) {
+		p.ParentID = parentID
+	})
+	factoryTask(store, "System design review", func(p *db.CreateTaskParams) {
+		p.ParentID = parentID
+	})
+
+	result, err := r.Query().Tasks(ctx, nil, nil)
+	if err != nil {
+		t.Fatalf("Tasks: %v", err)
+	}
+
+	// Find the parent in the result
+	var parentTask *model.Task
+	for _, task := range result {
+		if task.Title == "Interview prep" {
+			parentTask = task
+			break
+		}
+	}
+	if parentTask == nil {
+		t.Fatal("parent task not found in result")
+	}
+	if len(parentTask.Subtasks) != 2 {
+		t.Fatalf("expected 2 subtasks, got %d", len(parentTask.Subtasks))
+	}
+
+	titles := map[string]bool{}
+	for _, s := range parentTask.Subtasks {
+		titles[s.Title] = true
+	}
+	if !titles["LC easy problems"] || !titles["System design review"] {
+		t.Errorf("unexpected subtask titles: %v", titles)
+	}
+}
+
 func uuidToPgtypeTest(id pgtype.UUID) pgtype.UUID {
 	return id
 }

@@ -630,9 +630,21 @@ func (r *queryResolver) Tasks(ctx context.Context, category *model.Category, inc
 	if err != nil {
 		return nil, fmt.Errorf("listing tasks: %w", err)
 	}
-	result := make([]*model.Task, len(rows))
-	for i, row := range rows {
-		result[i] = taskConverter.FromDB(row)
+	// Convert all rows and index by ID
+	byID := make(map[uuid.UUID]*model.Task, len(rows))
+	result := make([]*model.Task, 0, len(rows))
+	for _, row := range rows {
+		t := taskConverter.FromDB(row)
+		byID[t.ID] = t
+		result = append(result, t)
+	}
+	// Wire up subtasks onto their parents
+	for _, t := range result {
+		if t.ParentID != nil {
+			if parent, ok := byID[*t.ParentID]; ok {
+				parent.Subtasks = append(parent.Subtasks, t)
+			}
+		}
 	}
 	return result, nil
 }

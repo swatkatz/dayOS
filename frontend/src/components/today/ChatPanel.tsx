@@ -15,6 +15,22 @@ interface Props {
   isFirstMessage: boolean
 }
 
+function formatAssistantContent(content: string): string {
+  const trimmed = content.trim()
+  // Strip code fences
+  const fenced = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)```/)
+  const inner = fenced ? fenced[1].trim() : trimmed
+  try {
+    const parsed = JSON.parse(inner)
+    if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].time && parsed[0].title) {
+      return `Here's your plan with ${parsed.length} blocks. Check the preview →`
+    }
+  } catch {
+    // Not JSON — return as-is
+  }
+  return content
+}
+
 export default function ChatPanel({ messages, onSend, loading, error, isFirstMessage }: Props) {
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -47,7 +63,7 @@ export default function ChatPanel({ messages, onSend, loading, error, isFirstMes
                   : 'bg-bg-surface text-text-primary'
               }`}
             >
-              {msg.content}
+              {msg.role === 'assistant' ? formatAssistantContent(msg.content) : msg.content}
             </div>
           </div>
         ))}

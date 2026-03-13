@@ -29,9 +29,14 @@ interface Proposal {
   }>
 }
 
+function extractJSON(content: string): string {
+  const fenced = content.match(/```(?:json)?\s*\n?([\s\S]*?)```/)
+  return fenced ? fenced[1].trim() : content.trim()
+}
+
 function tryParseProposal(content: string): { type: 'proposal'; data: Proposal } | { type: 'question'; message: string } | null {
   try {
-    const parsed = JSON.parse(content)
+    const parsed = JSON.parse(extractJSON(content))
     if (parsed.status === 'proposal' && parsed.parent && parsed.subtasks) {
       return { type: 'proposal', data: parsed }
     }
@@ -121,13 +126,17 @@ export default function ScopeChat({ onClose }: Props) {
     }
   }
 
+  const [error, setError] = useState<string | null>(null)
+
   const handleConfirm = async () => {
     if (!conversationId) return
+    setError(null)
     try {
       await confirmBreakdown({ variables: { conversationId } })
       onClose()
-    } catch {
-      // Error — keep chat open
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to create tasks'
+      setError(msg)
     }
   }
 
@@ -207,6 +216,9 @@ export default function ScopeChat({ onClose }: Props) {
       </div>
 
       {/* Proposal actions */}
+      {error && (
+        <div className="px-4 pt-3 text-sm text-red-400">{error}</div>
+      )}
       {proposalData && (
         <div className="p-4 border-t border-border-default flex gap-2">
           <button

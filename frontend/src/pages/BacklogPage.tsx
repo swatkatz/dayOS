@@ -72,7 +72,7 @@ export default function BacklogPage() {
         if (matchesFilter(task)) completed.push(task)
       } else if (isParent) {
         if (matchesFilter(task)) parents.push(task)
-      } else if (!isParent && task.estimatedMinutes != null) {
+      } else {
         if (matchesFilter(task)) standalone.push(task)
       }
     }

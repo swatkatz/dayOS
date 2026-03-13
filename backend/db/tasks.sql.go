@@ -288,7 +288,6 @@ const listTasks = `-- name: ListTasks :many
 SELECT id, title, category, priority, parent_id, estimated_minutes, actual_minutes, deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id, times_deferred, last_deferred_at, is_completed, completed_at, created_at, updated_at FROM tasks
 WHERE ($1::TEXT IS NULL OR category = $1)
   AND ($2::BOOLEAN = true OR is_completed = false)
-  AND parent_id IS NULL
 ORDER BY
   CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END,
   created_at DESC

@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"dayos/auth"
+	"dayos/cors"
 	"dayos/db"
 	"dayos/graph"
 	"dayos/planner"
@@ -35,9 +36,18 @@ func main() {
 		log.Fatal("DATABASE_URL is not set")
 	}
 
+	if os.Getenv("ANTHROPIC_API_KEY") == "" {
+		log.Fatal("ANTHROPIC_API_KEY environment variable is required")
+	}
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
+	}
+
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:5173"
 	}
 
 	// Run migrations
@@ -70,15 +80,15 @@ func main() {
 	srv := handler.NewDefaultServer(graph.NewExecutableSchema(cfg))
 
 	authMiddleware := auth.RequireAuth(appSecret)
+	corsMiddleware := cors.AllowFrontend(frontendURL)
 
 	if os.Getenv("RAILWAY_ENVIRONMENT") == "" {
 		// Dev mode: serve playground, but behind auth
 		http.Handle("/", authMiddleware(playground.Handler("DayOS", "/graphql")))
 	}
-	// Production: no playground — static files would be served here (owned by deployment spec)
 
-	// GraphQL endpoint always requires auth
-	http.Handle("/graphql", authMiddleware(srv))
+	// GraphQL endpoint: CORS wraps auth (preflight OPTIONS has no Authorization header)
+	http.Handle("/graphql", corsMiddleware(authMiddleware(srv)))
 
 	log.Printf("DayOS server running on :%s", port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), nil))

@@ -1,0 +1,16 @@
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+ARG VITE_GRAPHQL_URL
+ENV VITE_GRAPHQL_URL=$VITE_GRAPHQL_URL
+RUN npm run build
+
+FROM node:20-alpine
+WORKDIR /app
+RUN npm install -g serve@14
+COPY --from=builder /app/dist ./dist
+ENV PORT=8080
+EXPOSE $PORT
+CMD ["sh", "-c", "serve -s dist -l $PORT"]

@@ -192,10 +192,6 @@ func (m *mockTaskStore) ListTasks(_ context.Context, arg db.ListTasksParams) ([]
 	var result []db.Task
 	for _, id := range m.order {
 		t := m.tasks[id]
-		// top-level only
-		if t.ParentID.Valid {
-			continue
-		}
 		if arg.Category != nil && t.Category != *arg.Category {
 			continue
 		}
