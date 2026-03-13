@@ -1,6 +1,6 @@
 -- name: UpsertRoutine :one
 INSERT INTO routines (id, title, category, frequency, days_of_week,
-  preferred_time_of_day, preferred_duration_min, notes, is_active)
+  preferred_time_of_day, preferred_duration_min, preferred_exact_time, notes, is_active)
 VALUES (
   COALESCE(sqlc.narg('id')::UUID, gen_random_uuid()),
   sqlc.arg('title'),
@@ -9,6 +9,7 @@ VALUES (
   sqlc.narg('days_of_week'),
   sqlc.narg('preferred_time_of_day'),
   sqlc.narg('preferred_duration_min'),
+  sqlc.narg('preferred_exact_time'),
   sqlc.narg('notes'),
   COALESCE(sqlc.narg('is_active')::BOOLEAN, true)
 )
@@ -19,6 +20,7 @@ ON CONFLICT (id) DO UPDATE SET
   days_of_week = EXCLUDED.days_of_week,
   preferred_time_of_day = EXCLUDED.preferred_time_of_day,
   preferred_duration_min = EXCLUDED.preferred_duration_min,
+  preferred_exact_time = EXCLUDED.preferred_exact_time,
   notes = EXCLUDED.notes,
   is_active = EXCLUDED.is_active
 RETURNING *;
@@ -39,9 +41,9 @@ DELETE FROM routines WHERE id = $1;
 SELECT * FROM routines
 WHERE is_active = true
   AND (
-    frequency = 'daily'
-    OR (frequency = 'weekdays' AND $1::INT BETWEEN 1 AND 5)
-    OR (frequency = 'weekly' AND $1::INT = ANY(days_of_week))
-    OR (frequency = 'custom' AND $1::INT = ANY(days_of_week))
+    LOWER(frequency) = 'daily'
+    OR (LOWER(frequency) = 'weekdays' AND $1::INT BETWEEN 1 AND 5)
+    OR (LOWER(frequency) = 'weekly' AND $1::INT = ANY(days_of_week))
+    OR (LOWER(frequency) = 'custom' AND $1::INT = ANY(days_of_week))
   )
-ORDER BY preferred_time_of_day, title;
+ORDER BY preferred_exact_time NULLS LAST, preferred_time_of_day, title;

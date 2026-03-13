@@ -115,6 +115,7 @@ type ComplexityRoot struct {
 		IsActive             func(childComplexity int) int
 		Notes                func(childComplexity int) int
 		PreferredDurationMin func(childComplexity int) int
+		PreferredExactTime   func(childComplexity int) int
 		PreferredTimeOfDay   func(childComplexity int) int
 		Title                func(childComplexity int) int
 	}
@@ -682,6 +683,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Routine.PreferredDurationMin(childComplexity), true
+	case "Routine.preferredExactTime":
+		if e.ComplexityRoot.Routine.PreferredExactTime == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Routine.PreferredExactTime(childComplexity), true
 	case "Routine.preferredTimeOfDay":
 		if e.ComplexityRoot.Routine.PreferredTimeOfDay == nil {
 			break
@@ -2259,6 +2266,8 @@ func (ec *executionContext) fieldContext_Mutation_createRoutine(ctx context.Cont
 				return ec.fieldContext_Routine_preferredTimeOfDay(ctx, field)
 			case "preferredDurationMin":
 				return ec.fieldContext_Routine_preferredDurationMin(ctx, field)
+			case "preferredExactTime":
+				return ec.fieldContext_Routine_preferredExactTime(ctx, field)
 			case "notes":
 				return ec.fieldContext_Routine_notes(ctx, field)
 			case "isActive":
@@ -2320,6 +2329,8 @@ func (ec *executionContext) fieldContext_Mutation_updateRoutine(ctx context.Cont
 				return ec.fieldContext_Routine_preferredTimeOfDay(ctx, field)
 			case "preferredDurationMin":
 				return ec.fieldContext_Routine_preferredDurationMin(ctx, field)
+			case "preferredExactTime":
+				return ec.fieldContext_Routine_preferredExactTime(ctx, field)
 			case "notes":
 				return ec.fieldContext_Routine_notes(ctx, field)
 			case "isActive":
@@ -3574,6 +3585,8 @@ func (ec *executionContext) fieldContext_Query_routines(ctx context.Context, fie
 				return ec.fieldContext_Routine_preferredTimeOfDay(ctx, field)
 			case "preferredDurationMin":
 				return ec.fieldContext_Routine_preferredDurationMin(ctx, field)
+			case "preferredExactTime":
+				return ec.fieldContext_Routine_preferredExactTime(ctx, field)
 			case "notes":
 				return ec.fieldContext_Routine_notes(ctx, field)
 			case "isActive":
@@ -4124,6 +4137,35 @@ func (ec *executionContext) fieldContext_Routine_preferredDurationMin(_ context.
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Routine_preferredExactTime(ctx context.Context, field graphql.CollectedField, obj *model.Routine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Routine_preferredExactTime,
+		func(ctx context.Context) (any, error) {
+			return obj.PreferredExactTime, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Routine_preferredExactTime(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Routine",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -4715,6 +4757,8 @@ func (ec *executionContext) fieldContext_Task_routine(_ context.Context, field g
 				return ec.fieldContext_Routine_preferredTimeOfDay(ctx, field)
 			case "preferredDurationMin":
 				return ec.fieldContext_Routine_preferredDurationMin(ctx, field)
+			case "preferredExactTime":
+				return ec.fieldContext_Routine_preferredExactTime(ctx, field)
 			case "notes":
 				return ec.fieldContext_Routine_notes(ctx, field)
 			case "isActive":
@@ -6595,7 +6639,7 @@ func (ec *executionContext) unmarshalInputCreateRoutineInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"title", "category", "frequency", "daysOfWeek", "preferredTimeOfDay", "preferredDurationMin", "notes"}
+	fieldsInOrder := [...]string{"title", "category", "frequency", "daysOfWeek", "preferredTimeOfDay", "preferredDurationMin", "preferredExactTime", "notes"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -6664,6 +6708,13 @@ func (ec *executionContext) unmarshalInputCreateRoutineInput(ctx context.Context
 				return it, err
 			}
 			it.PreferredDurationMin = data
+		case "preferredExactTime":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("preferredExactTime"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PreferredExactTime = data
 		case "notes":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("notes"))
 			directive0 := func(ctx context.Context) (any, error) { return ec.unmarshalOString2ᚖstring(ctx, v) }
@@ -6883,7 +6934,7 @@ func (ec *executionContext) unmarshalInputUpdateRoutineInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"title", "category", "frequency", "daysOfWeek", "preferredTimeOfDay", "preferredDurationMin", "notes", "isActive"}
+	fieldsInOrder := [...]string{"title", "category", "frequency", "daysOfWeek", "preferredTimeOfDay", "preferredDurationMin", "preferredExactTime", "notes", "isActive"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -6954,6 +7005,13 @@ func (ec *executionContext) unmarshalInputUpdateRoutineInput(ctx context.Context
 				return it, err
 			}
 			it.PreferredDurationMin = data
+		case "preferredExactTime":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("preferredExactTime"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PreferredExactTime = data
 		case "notes":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("notes"))
 			directive0 := func(ctx context.Context) (any, error) { return ec.unmarshalOString2ᚖstring(ctx, v) }
@@ -7873,6 +7931,8 @@ func (ec *executionContext) _Routine(ctx context.Context, sel ast.SelectionSet, 
 			out.Values[i] = ec._Routine_preferredTimeOfDay(ctx, field, obj)
 		case "preferredDurationMin":
 			out.Values[i] = ec._Routine_preferredDurationMin(ctx, field, obj)
+		case "preferredExactTime":
+			out.Values[i] = ec._Routine_preferredExactTime(ctx, field, obj)
 		case "notes":
 			out.Values[i] = ec._Routine_notes(ctx, field, obj)
 		case "isActive":

@@ -11,6 +11,7 @@ interface Routine {
   daysOfWeek: number[] | null
   preferredTimeOfDay: string | null
   preferredDurationMin: number | null
+  preferredExactTime: string | null
   notes: string | null
   isActive: boolean
 }
@@ -43,12 +44,16 @@ function frequencyLabel(routine: Routine): string {
   return routine.frequency
 }
 
+type TimeMode = 'flexible' | 'exact'
+
 const EMPTY_FORM = {
   title: '',
   category: 'EXERCISE',
   frequency: 'DAILY',
   daysOfWeek: [] as number[],
+  timeMode: 'flexible' as TimeMode,
   preferredTimeOfDay: 'ANY',
+  preferredExactTime: '09:00',
   preferredDurationMin: 45,
   notes: '',
 }
@@ -83,12 +88,15 @@ export default function RoutinesPage() {
   }
 
   const openEdit = (r: Routine) => {
+    const hasExactTime = !!r.preferredExactTime
     setForm({
       title: r.title,
       category: r.category,
       frequency: r.frequency,
       daysOfWeek: r.daysOfWeek ?? [],
+      timeMode: hasExactTime ? 'exact' : 'flexible',
       preferredTimeOfDay: r.preferredTimeOfDay ?? 'ANY',
+      preferredExactTime: r.preferredExactTime ?? '09:00',
       preferredDurationMin: r.preferredDurationMin ?? 45,
       notes: r.notes ?? '',
     })
@@ -112,7 +120,8 @@ export default function RoutinesPage() {
       category: form.category,
       frequency: form.frequency,
       daysOfWeek: (form.frequency === 'WEEKLY' || form.frequency === 'CUSTOM') ? form.daysOfWeek : null,
-      preferredTimeOfDay: form.preferredTimeOfDay,
+      preferredTimeOfDay: form.timeMode === 'flexible' ? form.preferredTimeOfDay : null,
+      preferredExactTime: form.timeMode === 'exact' ? form.preferredExactTime : null,
       preferredDurationMin: form.preferredDurationMin,
       notes: form.notes.trim() || null,
     }
@@ -210,13 +219,44 @@ export default function RoutinesPage() {
               </div>
             )}
 
-            <select
-              value={form.preferredTimeOfDay}
-              onChange={(e) => setForm({ ...form, preferredTimeOfDay: e.target.value })}
-              className="bg-bg-surface border border-border-default rounded px-3 py-2 text-text-primary focus:border-accent outline-none"
-            >
-              {TIMES_OF_DAY.map((t) => <option key={t} value={t}>{t.toLowerCase()}</option>)}
-            </select>
+            <div className="col-span-2 flex items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="timeMode"
+                  checked={form.timeMode === 'flexible'}
+                  onChange={() => setForm({ ...form, timeMode: 'flexible' })}
+                  className="accent-accent"
+                />
+                <span className="text-text-primary text-sm">Flexible</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="timeMode"
+                  checked={form.timeMode === 'exact'}
+                  onChange={() => setForm({ ...form, timeMode: 'exact' })}
+                  className="accent-accent"
+                />
+                <span className="text-text-primary text-sm">Exact time</span>
+              </label>
+            </div>
+            {form.timeMode === 'flexible' ? (
+              <select
+                value={form.preferredTimeOfDay}
+                onChange={(e) => setForm({ ...form, preferredTimeOfDay: e.target.value })}
+                className="bg-bg-surface border border-border-default rounded px-3 py-2 text-text-primary focus:border-accent outline-none"
+              >
+                {TIMES_OF_DAY.map((t) => <option key={t} value={t}>{t.toLowerCase()}</option>)}
+              </select>
+            ) : (
+              <input
+                type="time"
+                value={form.preferredExactTime}
+                onChange={(e) => setForm({ ...form, preferredExactTime: e.target.value })}
+                className="bg-bg-surface border border-border-default rounded px-3 py-2 text-text-primary focus:border-accent outline-none"
+              />
+            )}
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -275,9 +315,11 @@ export default function RoutinesPage() {
                     </div>
                     <div className="flex items-center gap-3 text-text-secondary text-sm">
                       <span>{frequencyLabel(r)}</span>
-                      {r.preferredTimeOfDay && (
+                      {r.preferredExactTime ? (
+                        <span>{r.preferredExactTime}</span>
+                      ) : r.preferredTimeOfDay ? (
                         <span>{r.preferredTimeOfDay.toLowerCase()}</span>
-                      )}
+                      ) : null}
                       {r.preferredDurationMin && (
                         <span>{r.preferredDurationMin} min</span>
                       )}

@@ -42,13 +42,16 @@ func (r *mutationResolver) buildPlanChatInput(ctx context.Context, plan db.DayPl
 	}
 	for _, r := range routines {
 		ri := planner.RoutineInfo{
-			Title:    r.Title,
-			Category: r.Category,
+			RoutineID: uuid.UUID(r.ID.Bytes).String(),
+			Title:     r.Title,
+			Category:  r.Category,
 		}
 		if r.PreferredDurationMin != nil {
 			ri.DurationMin = int(*r.PreferredDurationMin)
 		}
-		if r.PreferredTimeOfDay != nil {
+		if r.PreferredExactTime != nil {
+			ri.ExactTime = *r.PreferredExactTime
+		} else if r.PreferredTimeOfDay != nil {
 			ri.PreferredTime = *r.PreferredTimeOfDay
 		} else {
 			ri.PreferredTime = "any"

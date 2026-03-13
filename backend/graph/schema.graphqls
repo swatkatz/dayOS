@@ -86,6 +86,7 @@ type Routine {
   daysOfWeek:            [Int!]
   preferredTimeOfDay:    TimeOfDay
   preferredDurationMin:  Int
+  preferredExactTime:    String
   notes:                 String
   isActive:              Boolean!
 }
@@ -173,6 +174,7 @@ input CreateRoutineInput {
   daysOfWeek:           [Int!]
   preferredTimeOfDay:   TimeOfDay
   preferredDurationMin: Int
+  preferredExactTime:   String
   notes:                String   @validate(rule: PLAIN_TEXT)}
 
 input UpdateRoutineInput {
@@ -181,6 +183,7 @@ input UpdateRoutineInput {
   daysOfWeek:           [Int!]
   preferredTimeOfDay:   TimeOfDay
   preferredDurationMin: Int
+  preferredExactTime:   String
   notes:                String   @validate(rule: PLAIN_TEXT)  isActive:             Boolean
 }
 

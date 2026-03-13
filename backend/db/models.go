@@ -46,6 +46,7 @@ type Routine struct {
 	Notes                *string            `json:"notes"`
 	IsActive             *bool              `json:"is_active"`
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	PreferredExactTime   *string            `json:"preferred_exact_time"`
 }
 
 type Task struct {

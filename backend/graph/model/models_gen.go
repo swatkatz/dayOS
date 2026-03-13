@@ -27,6 +27,7 @@ type CreateRoutineInput struct {
 	DaysOfWeek           []int      `json:"daysOfWeek,omitempty"`
 	PreferredTimeOfDay   *TimeOfDay `json:"preferredTimeOfDay,omitempty"`
 	PreferredDurationMin *int       `json:"preferredDurationMin,omitempty"`
+	PreferredExactTime   *string    `json:"preferredExactTime,omitempty"`
 	Notes                *string    `json:"notes,omitempty"`
 }
 
@@ -86,6 +87,7 @@ type Routine struct {
 	DaysOfWeek           []int      `json:"daysOfWeek,omitempty"`
 	PreferredTimeOfDay   *TimeOfDay `json:"preferredTimeOfDay,omitempty"`
 	PreferredDurationMin *int       `json:"preferredDurationMin,omitempty"`
+	PreferredExactTime   *string    `json:"preferredExactTime,omitempty"`
 	Notes                *string    `json:"notes,omitempty"`
 	IsActive             bool       `json:"isActive"`
 }
@@ -142,6 +144,7 @@ type UpdateRoutineInput struct {
 	DaysOfWeek           []int      `json:"daysOfWeek,omitempty"`
 	PreferredTimeOfDay   *TimeOfDay `json:"preferredTimeOfDay,omitempty"`
 	PreferredDurationMin *int       `json:"preferredDurationMin,omitempty"`
+	PreferredExactTime   *string    `json:"preferredExactTime,omitempty"`
 	Notes                *string    `json:"notes,omitempty"`
 	IsActive             *bool      `json:"isActive,omitempty"`
 }

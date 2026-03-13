@@ -21,7 +21,7 @@ func (q *Queries) DeleteRoutine(ctx context.Context, id pgtype.UUID) error {
 }
 
 const getRoutine = `-- name: GetRoutine :one
-SELECT id, title, category, frequency, days_of_week, preferred_time_of_day, preferred_duration_min, notes, is_active, created_at FROM routines WHERE id = $1
+SELECT id, title, category, frequency, days_of_week, preferred_time_of_day, preferred_duration_min, notes, is_active, created_at, preferred_exact_time FROM routines WHERE id = $1
 `
 
 func (q *Queries) GetRoutine(ctx context.Context, id pgtype.UUID) (Routine, error) {
@@ -38,12 +38,13 @@ func (q *Queries) GetRoutine(ctx context.Context, id pgtype.UUID) (Routine, erro
 		&i.Notes,
 		&i.IsActive,
 		&i.CreatedAt,
+		&i.PreferredExactTime,
 	)
 	return i, err
 }
 
 const listRoutines = `-- name: ListRoutines :many
-SELECT id, title, category, frequency, days_of_week, preferred_time_of_day, preferred_duration_min, notes, is_active, created_at FROM routines
+SELECT id, title, category, frequency, days_of_week, preferred_time_of_day, preferred_duration_min, notes, is_active, created_at, preferred_exact_time FROM routines
 WHERE ($1::BOOLEAN IS NULL OR $1 = false OR is_active = true)
 ORDER BY created_at
 `
@@ -68,6 +69,7 @@ func (q *Queries) ListRoutines(ctx context.Context, activeOnly *bool) ([]Routine
 			&i.Notes,
 			&i.IsActive,
 			&i.CreatedAt,
+			&i.PreferredExactTime,
 		); err != nil {
 			return nil, err
 		}
@@ -80,15 +82,15 @@ func (q *Queries) ListRoutines(ctx context.Context, activeOnly *bool) ([]Routine
 }
 
 const listRoutinesForDay = `-- name: ListRoutinesForDay :many
-SELECT id, title, category, frequency, days_of_week, preferred_time_of_day, preferred_duration_min, notes, is_active, created_at FROM routines
+SELECT id, title, category, frequency, days_of_week, preferred_time_of_day, preferred_duration_min, notes, is_active, created_at, preferred_exact_time FROM routines
 WHERE is_active = true
   AND (
-    frequency = 'daily'
-    OR (frequency = 'weekdays' AND $1::INT BETWEEN 1 AND 5)
-    OR (frequency = 'weekly' AND $1::INT = ANY(days_of_week))
-    OR (frequency = 'custom' AND $1::INT = ANY(days_of_week))
+    LOWER(frequency) = 'daily'
+    OR (LOWER(frequency) = 'weekdays' AND $1::INT BETWEEN 1 AND 5)
+    OR (LOWER(frequency) = 'weekly' AND $1::INT = ANY(days_of_week))
+    OR (LOWER(frequency) = 'custom' AND $1::INT = ANY(days_of_week))
   )
-ORDER BY preferred_time_of_day, title
+ORDER BY preferred_exact_time NULLS LAST, preferred_time_of_day, title
 `
 
 // Used by planner: active routines that apply to a given day-of-week
@@ -112,6 +114,7 @@ func (q *Queries) ListRoutinesForDay(ctx context.Context, dollar_1 int32) ([]Rou
 			&i.Notes,
 			&i.IsActive,
 			&i.CreatedAt,
+			&i.PreferredExactTime,
 		); err != nil {
 			return nil, err
 		}
@@ -125,7 +128,7 @@ func (q *Queries) ListRoutinesForDay(ctx context.Context, dollar_1 int32) ([]Rou
 
 const upsertRoutine = `-- name: UpsertRoutine :one
 INSERT INTO routines (id, title, category, frequency, days_of_week,
-  preferred_time_of_day, preferred_duration_min, notes, is_active)
+  preferred_time_of_day, preferred_duration_min, preferred_exact_time, notes, is_active)
 VALUES (
   COALESCE($1::UUID, gen_random_uuid()),
   $2,
@@ -135,7 +138,8 @@ VALUES (
   $6,
   $7,
   $8,
-  COALESCE($9::BOOLEAN, true)
+  $9,
+  COALESCE($10::BOOLEAN, true)
 )
 ON CONFLICT (id) DO UPDATE SET
   title = EXCLUDED.title,
@@ -144,9 +148,10 @@ ON CONFLICT (id) DO UPDATE SET
   days_of_week = EXCLUDED.days_of_week,
   preferred_time_of_day = EXCLUDED.preferred_time_of_day,
   preferred_duration_min = EXCLUDED.preferred_duration_min,
+  preferred_exact_time = EXCLUDED.preferred_exact_time,
   notes = EXCLUDED.notes,
   is_active = EXCLUDED.is_active
-RETURNING id, title, category, frequency, days_of_week, preferred_time_of_day, preferred_duration_min, notes, is_active, created_at
+RETURNING id, title, category, frequency, days_of_week, preferred_time_of_day, preferred_duration_min, notes, is_active, created_at, preferred_exact_time
 `
 
 type UpsertRoutineParams struct {
@@ -157,6 +162,7 @@ type UpsertRoutineParams struct {
 	DaysOfWeek           []int32     `json:"days_of_week"`
 	PreferredTimeOfDay   *string     `json:"preferred_time_of_day"`
 	PreferredDurationMin *int32      `json:"preferred_duration_min"`
+	PreferredExactTime   *string     `json:"preferred_exact_time"`
 	Notes                *string     `json:"notes"`
 	IsActive             *bool       `json:"is_active"`
 }
@@ -170,6 +176,7 @@ func (q *Queries) UpsertRoutine(ctx context.Context, arg UpsertRoutineParams) (R
 		arg.DaysOfWeek,
 		arg.PreferredTimeOfDay,
 		arg.PreferredDurationMin,
+		arg.PreferredExactTime,
 		arg.Notes,
 		arg.IsActive,
 	)
@@ -185,6 +192,7 @@ func (q *Queries) UpsertRoutine(ctx context.Context, arg UpsertRoutineParams) (R
 		&i.Notes,
 		&i.IsActive,
 		&i.CreatedAt,
+		&i.PreferredExactTime,
 	)
 	return i, err
 }

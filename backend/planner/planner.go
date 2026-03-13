@@ -47,10 +47,12 @@ type ContextEntry struct {
 }
 
 type RoutineInfo struct {
+	RoutineID     string `json:"routine_id"`
 	Title         string `json:"title"`
 	Category      string `json:"category"`
 	DurationMin   int    `json:"duration_min"`
-	PreferredTime string `json:"preferred_time"`
+	PreferredTime string `json:"preferred_time,omitempty"`
+	ExactTime     string `json:"exact_time,omitempty"`
 }
 
 type TaskInfo struct {
@@ -110,6 +112,9 @@ const retryPrompt = `Your previous response was not valid JSON. You MUST respond
 // PlanChat sends a plan message to the AI and returns parsed blocks.
 func (s *Service) PlanChat(ctx context.Context, input PlanChatInput) (*PlanChatOutput, error) {
 	systemPrompt := s.buildPlanSystemPrompt(input)
+	fmt.Println("=== SYSTEM PROMPT ===")
+	fmt.Println(systemPrompt)
+	fmt.Println("=== END SYSTEM PROMPT ===")
 
 	messages := make([]Message, 0, len(input.History)+1)
 	messages = append(messages, input.History...)
@@ -267,7 +272,7 @@ SAFETY:
 	b.WriteString("\n\n")
 
 	// Routines
-	routineData, _ := validate.FormatContextData("TODAY'S ROUTINES (non-negotiable unless Swati says otherwise):", input.Routines)
+	routineData, _ := validate.FormatContextData("TODAY'S ROUTINES — EVERY routine below MUST appear as a block in your plan. Use the routine_id from each entry as the block's routine_id. Routines with exact_time MUST be scheduled at that exact time. Routines with preferred_time are flexible but still mandatory to include:", input.Routines)
 	b.WriteString(routineData)
 	b.WriteString("\n\n")
 
@@ -295,7 +300,7 @@ DEFERRED TASK ESCALATION:
 
 PLANNING RULES:
 - Read the CONTEXT section carefully. It tells you when deep work is possible, when family time is, energy limits, and scheduling constraints. Follow it.
-- Routines have a preferred time of day, but treat it as a preference, not a constraint. If the preferred slot is packed with higher-priority work, move the routine to another available slot. Routines marked "any" should fill gaps in the schedule.
+- Routines with an "exact_time" field MUST be scheduled at that exact time — treat it as a hard constraint, not a preference. Routines with only a "preferred_time" (morning/midday/afternoon/evening/any) should be treated as a preference, not a constraint. If the preferred slot is packed with higher-priority work, move the routine to another available slot. Routines marked "any" should fill gaps in the schedule.
 - Hardest cognitive tasks go in the earliest available deep work slot.
 - Always leave 15-min buffers between intense 90+ min sessions.
 - Be SPECIFIC in block titles (e.g., "Meta LC: Coin Change II — bottom-up DP" not "Interview prep").

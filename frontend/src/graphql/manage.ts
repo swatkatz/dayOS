@@ -10,6 +10,7 @@ export const GET_ROUTINES = gql`
       daysOfWeek
       preferredTimeOfDay
       preferredDurationMin
+      preferredExactTime
       notes
       isActive
     }
@@ -26,6 +27,7 @@ export const CREATE_ROUTINE = gql`
       daysOfWeek
       preferredTimeOfDay
       preferredDurationMin
+      preferredExactTime
       notes
       isActive
     }
@@ -42,6 +44,7 @@ export const UPDATE_ROUTINE = gql`
       daysOfWeek
       preferredTimeOfDay
       preferredDurationMin
+      preferredExactTime
       notes
       isActive
     }

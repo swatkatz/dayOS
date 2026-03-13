@@ -31,6 +31,7 @@ func (routineConv) FromDB(r db.Routine) *model.Routine {
 		d := int(*r.PreferredDurationMin)
 		out.PreferredDurationMin = &d
 	}
+	out.PreferredExactTime = r.PreferredExactTime
 	if len(r.DaysOfWeek) > 0 {
 		days := make([]int, len(r.DaysOfWeek))
 		for i, d := range r.DaysOfWeek {
@@ -59,6 +60,7 @@ func (routineConv) ToDB(input model.CreateRoutineInput) db.UpsertRoutineParams {
 		v := int32(*input.PreferredDurationMin)
 		params.PreferredDurationMin = &v
 	}
+	params.PreferredExactTime = input.PreferredExactTime
 	return params
 }
 
@@ -71,6 +73,7 @@ func (routineConv) MergeParams(existing db.Routine, input model.UpdateRoutineInp
 		DaysOfWeek:           existing.DaysOfWeek,
 		PreferredTimeOfDay:   existing.PreferredTimeOfDay,
 		PreferredDurationMin: existing.PreferredDurationMin,
+		PreferredExactTime:   existing.PreferredExactTime,
 		Notes:                existing.Notes,
 		IsActive:             existing.IsActive,
 	}
@@ -96,6 +99,9 @@ func (routineConv) MergeParams(existing db.Routine, input model.UpdateRoutineInp
 	if input.PreferredDurationMin != nil {
 		v := int32(*input.PreferredDurationMin)
 		params.PreferredDurationMin = &v
+	}
+	if input.PreferredExactTime != nil {
+		params.PreferredExactTime = input.PreferredExactTime
 	}
 	if input.Notes != nil {
 		params.Notes = input.Notes
