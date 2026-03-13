@@ -129,6 +129,10 @@ Use `/write-spec <context-name>` to generate a spec.
 
 14. `specs/deployment.md` — Railway config, embedded frontend, env vars
 
+**Wave 6 — Integrations**
+
+15. `specs/calendar.md` — Google Calendar integration, OAuth, memcached caching, planner prompt injection, frontend polling + replan detection
+
 ### Spec workflow
 
 - Write specs first, then implement. Never implement without a spec.
