@@ -74,6 +74,7 @@ export default function TodayPage() {
   const [showReview, setShowReview] = useState(true)
   const [replanning, setReplanning] = useState(false)
   const [chatError, setChatError] = useState<string | null>(null)
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null)
 
   const { data: planData, loading: planLoading } = useQuery<GetTodayPlanData>(GET_TODAY_PLAN, {
     variables: { date },
@@ -111,6 +112,7 @@ export default function TodayPage() {
   // Handlers
   const handleSendMessage = async (message: string) => {
     setChatError(null)
+    setPendingMessage(message)
     try {
       await sendMessage({
         variables: { date, message },
@@ -124,8 +126,10 @@ export default function TodayPage() {
           }
         },
       })
+      setPendingMessage(null)
     } catch (err) {
       setChatError(err instanceof Error ? err.message : 'Failed to send message')
+      setPendingMessage(null)
     }
   }
 
@@ -244,13 +248,16 @@ export default function TodayPage() {
   }
 
   // Draft / new plan / replanning — show chat + preview split
+  const displayMessages = pendingMessage
+    ? [...messages, { id: '__pending__', role: 'user', content: pendingMessage, createdAt: new Date().toISOString() }]
+    : messages
   const isFirstMessage = messages.length === 0
 
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-4rem)] gap-0">
       <div className="md:w-1/2 h-1/2 md:h-full border-r border-border-default">
         <ChatPanel
-          messages={messages}
+          messages={displayMessages}
           onSend={handleSendMessage}
           loading={sending}
           error={chatError}

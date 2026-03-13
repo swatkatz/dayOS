@@ -38,7 +38,7 @@ export default function CompletedSection({ tasks }: Props) {
       {open && (
         <div>
           {tasks.map((task) => (
-            <TaskRow key={task.id} task={task} />
+            <TaskRow key={task.id} task={task} readOnly />
           ))}
         </div>
       )}

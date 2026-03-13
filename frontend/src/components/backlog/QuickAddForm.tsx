@@ -11,6 +11,7 @@ const PRIORITIES = ['HIGH', 'MEDIUM', 'LOW']
 
 export default function QuickAddForm({ onClose }: Props) {
   const [title, setTitle] = useState('')
+  const [notes, setNotes] = useState('')
   const [category, setCategory] = useState('ADMIN')
   const [priority, setPriority] = useState('MEDIUM')
   const [estimatedMinutes, setEstimatedMinutes] = useState(60)
@@ -30,6 +31,7 @@ export default function QuickAddForm({ onClose }: Props) {
           category,
           priority,
           estimatedMinutes,
+          ...(notes.trim() ? { notes: notes.trim() } : {}),
         },
       },
     })
@@ -53,6 +55,13 @@ export default function QuickAddForm({ onClose }: Props) {
           placeholder="Task title"
           autoFocus
           className="col-span-2 bg-bg-surface border border-border-default rounded px-3 py-2 text-text-primary placeholder:text-text-secondary focus:border-accent focus:ring-1 focus:ring-accent outline-none"
+        />
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Notes / description (optional)"
+          rows={2}
+          className="col-span-2 bg-bg-surface border border-border-default rounded px-3 py-2 text-text-primary placeholder:text-text-secondary focus:border-accent focus:ring-1 focus:ring-accent outline-none resize-y"
         />
 
         <select

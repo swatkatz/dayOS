@@ -89,7 +89,7 @@ Input validation uses **gqlgen directives**, not converter code:
 - Apollo Client for all data fetching (no REST calls)
 - Dark theme: background #0f0f11, text #e8e6e1, accent #c5a55a
 - Category colors: job=#6366f1, interview=#0ea5e9, project=#8b5cf6,
-  meal=#10b981, baby=#f59e0b, exercise=#ef4444, admin=#6b7280
+  meal=#10b981, baby=#f59e0b, exercise=#ef4444, admin=#14b8a6
 
 ## Specs
 

@@ -5,5 +5,5 @@ export const CATEGORY_COLORS: Record<string, string> = {
   MEAL: '#10b981',
   BABY: '#f59e0b',
   EXERCISE: '#ef4444',
-  ADMIN: '#6b7280',
+  ADMIN: '#14b8a6',
 }

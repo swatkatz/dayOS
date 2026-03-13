@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 
 interface Message {
   id: string
@@ -34,7 +34,14 @@ function formatAssistantContent(content: string): string {
 export default function ChatPanel({ messages, onSend, loading, error, isFirstMessage }: Props) {
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  const autoResize = useCallback(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 150) + 'px'
+  }, [])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -46,6 +53,17 @@ export default function ChatPanel({ messages, onSend, loading, error, isFirstMes
     if (!trimmed || loading) return
     onSend(trimmed)
     setInput('')
+    // Reset textarea height
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto'
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSubmit(e)
+    }
   }
 
   return (
@@ -89,14 +107,15 @@ export default function ChatPanel({ messages, onSend, loading, error, isFirstMes
 
       <form onSubmit={handleSubmit} className="p-4 border-t border-border-default">
         <div className="flex gap-2">
-          <input
+          <textarea
             ref={inputRef}
-            type="text"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => { setInput(e.target.value); autoResize() }}
+            onKeyDown={handleKeyDown}
             disabled={loading}
+            rows={1}
             placeholder={isFirstMessage ? 'Describe your day...' : 'Adjust the plan...'}
-            className="flex-1 bg-bg-surface border border-border-default rounded px-3 py-2 text-text-primary placeholder:text-text-secondary focus:border-accent focus:ring-1 focus:ring-accent outline-none disabled:opacity-50"
+            className="flex-1 bg-bg-surface border border-border-default rounded px-3 py-2 text-text-primary placeholder:text-text-secondary focus:border-accent focus:ring-1 focus:ring-accent outline-none disabled:opacity-50 resize-none overflow-hidden"
           />
           <button
             type="submit"

@@ -28,6 +28,13 @@ export function useNowPosition(blocks: Block[]): number {
   return position
 }
 
+interface ActiveBlock {
+  id: string
+  time: string
+  duration: number
+  skipped: boolean
+}
+
 function computePosition(blocks: Block[]): number {
   if (blocks.length === 0) return -1
   const now = new Date()
@@ -36,6 +43,33 @@ function computePosition(blocks: Block[]): number {
     if (now < blockTime) return i
   }
   return blocks.length
+}
+
+function computeActiveBlockId(blocks: ActiveBlock[]): string | null {
+  if (blocks.length === 0) return null
+  const now = new Date()
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i]
+    if (b.skipped) continue
+    const start = getBlockDate(b.time)
+    const end = new Date(start.getTime() + b.duration * 60_000)
+    if (now >= start && now < end) return b.id
+  }
+  return null
+}
+
+export function useActiveBlockId(blocks: ActiveBlock[]): string | null {
+  const [activeId, setActiveId] = useState<string | null>(() => computeActiveBlockId(blocks))
+
+  useEffect(() => {
+    setActiveId(computeActiveBlockId(blocks))
+    const interval = setInterval(() => {
+      setActiveId(computeActiveBlockId(blocks))
+    }, 60_000)
+    return () => clearInterval(interval)
+  }, [blocks])
+
+  return activeId
 }
 
 export default function NowIndicator({ blocks }: Props) {

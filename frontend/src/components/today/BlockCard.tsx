@@ -17,9 +17,8 @@ interface Props {
   onUpdateDuration?: (blockId: string, duration: number) => void
   onUpdateBlock?: (blockId: string, updates: Partial<Block>) => void
   onDelete?: (blockId: string) => void
-  onMoveUp?: () => void
-  onMoveDown?: () => void
   readOnly?: boolean
+  active?: boolean
 }
 
 function formatTime12h(time: string): string {
@@ -29,9 +28,15 @@ function formatTime12h(time: string): string {
   return `${hour12}:${String(m).padStart(2, '0')} ${ampm}`
 }
 
+function endTime(time: string, duration: number): string {
+  const [h, m] = time.split(':').map(Number)
+  const total = h * 60 + m + duration
+  return formatTime12h(`${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`)
+}
+
 const CATEGORIES = ['JOB', 'INTERVIEW', 'PROJECT', 'MEAL', 'BABY', 'EXERCISE', 'ADMIN']
 
-export default function BlockCard({ block, onSkip, onUpdateDuration, onUpdateBlock, onDelete, onMoveUp, onMoveDown, readOnly }: Props) {
+export default function BlockCard({ block, onSkip, onUpdateDuration, onUpdateBlock, onDelete, readOnly, active }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draftDuration, setDraftDuration] = useState(String(block.duration))
@@ -73,13 +78,13 @@ export default function BlockCard({ block, onSkip, onUpdateDuration, onUpdateBlo
   }
 
   return (
-    <div className={`rounded-lg bg-bg-surface ${block.skipped ? 'opacity-50' : ''}`} style={{ borderLeft: `4px solid ${color}` }}>
+    <div className={`rounded-lg bg-bg-surface ${block.skipped ? 'opacity-50' : ''} ${active ? 'ring-2 ring-accent ring-offset-1 ring-offset-bg-primary' : ''}`} style={{ borderLeft: `4px solid ${color}` }}>
       <div className="relative p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 mb-1">
               <span className="text-text-secondary text-sm font-mono">
-                {formatTime12h(block.time)}
+                {formatTime12h(block.time)} – {endTime(block.time, block.duration)}
               </span>
 
               {editing ? (
@@ -128,24 +133,6 @@ export default function BlockCard({ block, onSkip, onUpdateDuration, onUpdateBlo
               <span className="text-text-secondary text-xs">Skipped</span>
             ) : (
               <>
-                {onMoveUp && (
-                  <button
-                    onClick={onMoveUp}
-                    className="text-text-secondary hover:text-text-primary text-sm transition-colors"
-                    title="Move up"
-                  >
-                    ↑
-                  </button>
-                )}
-                {onMoveDown && (
-                  <button
-                    onClick={onMoveDown}
-                    className="text-text-secondary hover:text-text-primary text-sm transition-colors"
-                    title="Move down"
-                  >
-                    ↓
-                  </button>
-                )}
                 {editable && (
                   <button
                     onClick={() => setExpanded(!expanded)}

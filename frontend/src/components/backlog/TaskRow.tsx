@@ -23,6 +23,7 @@ interface Task {
 interface Props {
   task: Task
   isSubtask?: boolean
+  readOnly?: boolean
 }
 
 function formatMinutes(mins: number): string {
@@ -56,10 +57,16 @@ const PRIORITY_COLORS: Record<string, string> = {
 const CATEGORIES = ['JOB', 'INTERVIEW', 'PROJECT', 'MEAL', 'BABY', 'EXERCISE', 'ADMIN']
 const PRIORITIES = ['HIGH', 'MEDIUM', 'LOW']
 
-export default function TaskRow({ task, isSubtask }: Props) {
+export default function TaskRow({ task, isSubtask, readOnly }: Props) {
+  const locked = task.isCompleted || !!readOnly
   const [expanded, setExpanded] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState(task.title)
+  const [editingNotes, setEditingNotes] = useState(false)
+  const [notesDraft, setNotesDraft] = useState(task.notes ?? '')
+  const [editingPriority, setEditingPriority] = useState(false)
+  const [editingEst, setEditingEst] = useState(false)
+  const [estDraft, setEstDraft] = useState(String(task.estimatedMinutes ?? ''))
 
   const refetchOpts = { refetchQueries: [{ query: GET_TASKS, variables: { includeCompleted: true } }] }
   const [completeTask] = useMutation(COMPLETE_TASK, refetchOpts)
@@ -80,6 +87,14 @@ export default function TaskRow({ task, isSubtask }: Props) {
       await updateTask({ variables: { id: task.id, input: { title: titleDraft.trim() } } })
     } else {
       setTitleDraft(task.title)
+    }
+  }
+
+  const handleNotesSave = async () => {
+    setEditingNotes(false)
+    const trimmed = notesDraft.trim()
+    if (trimmed !== (task.notes ?? '')) {
+      await updateTask({ variables: { id: task.id, input: { notes: trimmed || null } } })
     }
   }
 
@@ -117,9 +132,9 @@ export default function TaskRow({ task, isSubtask }: Props) {
           {task.isCompleted && <span className="text-xs">✓</span>}
         </button>
 
-        {/* Title */}
+        {/* Title + Notes */}
         <div className="flex-1 min-w-0">
-          {editingTitle ? (
+          {!locked && editingTitle ? (
             <input
               value={titleDraft}
               onChange={(e) => setTitleDraft(e.target.value)}
@@ -133,12 +148,40 @@ export default function TaskRow({ task, isSubtask }: Props) {
             />
           ) : (
             <span
-              onClick={() => setEditingTitle(true)}
-              className={`cursor-pointer ${task.isCompleted ? 'text-text-secondary line-through' : 'text-text-primary'}`}
+              onClick={!locked ? () => setEditingTitle(true) : undefined}
+              className={`${!locked ? 'cursor-pointer' : ''} ${task.isCompleted ? 'text-text-secondary line-through' : 'text-text-primary'}`}
             >
               {task.title}
             </span>
           )}
+          {!locked && editingNotes ? (
+            <textarea
+              value={notesDraft}
+              onChange={(e) => setNotesDraft(e.target.value)}
+              onBlur={handleNotesSave}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') { setEditingNotes(false); setNotesDraft(task.notes ?? '') }
+              }}
+              autoFocus
+              rows={2}
+              className="w-full mt-1 bg-transparent border border-accent rounded px-1 py-0.5 text-text-secondary text-xs outline-none resize-y"
+              placeholder="Add notes..."
+            />
+          ) : task.notes ? (
+            <p
+              onClick={!locked ? () => setEditingNotes(true) : undefined}
+              className={`text-text-secondary text-xs mt-1 whitespace-pre-wrap line-clamp-2 ${!locked ? 'cursor-pointer hover:text-text-primary' : ''} transition-colors`}
+            >
+              {task.notes}
+            </p>
+          ) : !locked ? (
+            <p
+              onClick={() => setEditingNotes(true)}
+              className="text-text-secondary text-xs mt-1 cursor-pointer hover:text-text-primary transition-colors"
+            >
+              <span className="opacity-0 group-hover:opacity-100">+ Add notes</span>
+            </p>
+          ) : null}
         </div>
 
         {/* Deferred indicator */}
@@ -147,14 +190,54 @@ export default function TaskRow({ task, isSubtask }: Props) {
         )}
 
         {/* Priority */}
-        <span className={`text-xs flex-shrink-0 ${PRIORITY_COLORS[task.priority] || ''}`}>
-          {task.priority}
-        </span>
+        {!locked && editingPriority ? (
+          <select
+            value={task.priority}
+            onChange={(e) => { handleFieldUpdate({ priority: e.target.value }); setEditingPriority(false) }}
+            onBlur={() => setEditingPriority(false)}
+            autoFocus
+            className="text-xs flex-shrink-0 bg-bg-primary border border-accent rounded px-1 py-0.5 text-text-primary outline-none"
+          >
+            {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+        ) : (
+          <span
+            onClick={!locked ? () => setEditingPriority(true) : undefined}
+            className={`text-xs flex-shrink-0 ${!locked ? 'cursor-pointer hover:opacity-75' : ''} transition-opacity ${PRIORITY_COLORS[task.priority] || ''}`}
+          >
+            {task.priority}
+          </span>
+        )}
 
         {/* Progress (subtask/standalone) */}
-        {task.estimatedMinutes != null && (
-          <span className="text-text-secondary text-xs flex-shrink-0">
-            {formatMinutes(task.actualMinutes)} / {formatMinutes(task.estimatedMinutes)}
+        {!locked && editingEst ? (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <input
+              type="number"
+              value={estDraft}
+              onChange={(e) => setEstDraft(e.target.value)}
+              onBlur={() => {
+                setEditingEst(false)
+                const v = parseInt(estDraft)
+                if (!isNaN(v) && v > 0 && v !== task.estimatedMinutes) handleFieldUpdate({ estimatedMinutes: v })
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                if (e.key === 'Escape') { setEditingEst(false); setEstDraft(String(task.estimatedMinutes ?? '')) }
+              }}
+              autoFocus
+              className="w-14 bg-bg-primary border border-accent rounded px-1 py-0.5 text-xs text-text-primary outline-none"
+            />
+            <span className="text-text-secondary text-xs">min</span>
+          </div>
+        ) : (
+          <span
+            onClick={!locked ? () => { setEstDraft(String(task.estimatedMinutes ?? '')); setEditingEst(true) } : undefined}
+            className={`text-text-secondary text-xs flex-shrink-0 ${!locked ? 'cursor-pointer hover:text-text-primary' : ''} transition-colors`}
+          >
+            {task.estimatedMinutes != null
+              ? `${formatMinutes(task.actualMinutes)} / ${formatMinutes(task.estimatedMinutes)}`
+              : !locked ? <span className="opacity-0 group-hover:opacity-100">+ est.</span> : null}
           </span>
         )}
 
@@ -165,23 +248,27 @@ export default function TaskRow({ task, isSubtask }: Props) {
           </span>
         )}
 
-        {/* Expand */}
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="text-text-secondary hover:text-text-primary opacity-0 group-hover:opacity-100 transition-all text-sm flex-shrink-0"
-          title="Edit"
-        >
-          {expanded ? '▲' : '▼'}
-        </button>
+        {!locked && (
+          <>
+            {/* Expand */}
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="text-text-secondary hover:text-text-primary opacity-0 group-hover:opacity-100 transition-all text-sm flex-shrink-0"
+              title="Edit"
+            >
+              {expanded ? '▲' : '▼'}
+            </button>
 
-        {/* Delete */}
-        <button
-          onClick={handleDelete}
-          className="text-text-secondary hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all text-sm flex-shrink-0"
-          title="Delete"
-        >
-          🗑
-        </button>
+            {/* Delete */}
+            <button
+              onClick={handleDelete}
+              className="text-text-secondary hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all text-sm flex-shrink-0"
+              title="Delete"
+            >
+              🗑
+            </button>
+          </>
+        )}
       </div>
 
       {/* Expanded edit panel */}

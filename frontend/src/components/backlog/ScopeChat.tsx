@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useMutation } from '@apollo/client/react'
 import { START_TASK_CONVERSATION, SEND_TASK_MESSAGE, CONFIRM_TASK_BREAKDOWN, GET_TASKS } from '../../graphql/backlog'
 
@@ -74,6 +74,14 @@ export default function ScopeChat({ onClose }: Props) {
   const [input, setInput] = useState('')
   const [proposalData, setProposalData] = useState<Proposal | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  const autoResize = useCallback(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 150) + 'px'
+  }, [])
 
   const [startConversation, { loading: starting }] = useMutation<{ startTaskConversation: { id: string; status: string; messages: Message[] } }>(START_TASK_CONVERSATION)
   const [sendMessage, { loading: sendingMsg }] = useMutation<{ sendTaskMessage: { id: string; status: string; messages: Message[] } }>(SEND_TASK_MESSAGE)
@@ -87,10 +95,22 @@ export default function ScopeChat({ onClose }: Props) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }
+
   const handleSend = async () => {
     const trimmed = input.trim()
     if (!trimmed || loading) return
     setInput('')
+    if (inputRef.current) inputRef.current.style.height = 'auto'
+
+    // Show user message immediately
+    const pendingMsg: Message = { id: '__pending__', role: 'user', content: trimmed }
+    setMessages((prev) => [...prev, pendingMsg])
 
     try {
       if (!conversationId) {
@@ -110,7 +130,8 @@ export default function ScopeChat({ onClose }: Props) {
         }
       }
     } catch {
-      // Error handling — messages remain as-is
+      // Remove pending message on error so it doesn't stick
+      setMessages((prev) => prev.filter((m) => m.id !== '__pending__'))
     }
   }
 
@@ -243,12 +264,15 @@ export default function ScopeChat({ onClose }: Props) {
         className="p-4 border-t border-border-default"
       >
         <div className="flex gap-2">
-          <input
+          <textarea
+            ref={inputRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => { setInput(e.target.value); autoResize() }}
+            onKeyDown={handleKeyDown}
             disabled={loading}
+            rows={1}
             placeholder="Describe a goal..."
-            className="flex-1 bg-bg-surface border border-border-default rounded px-3 py-2 text-text-primary placeholder:text-text-secondary focus:border-accent focus:ring-1 focus:ring-accent outline-none disabled:opacity-50"
+            className="flex-1 bg-bg-surface border border-border-default rounded px-3 py-2 text-text-primary placeholder:text-text-secondary focus:border-accent focus:ring-1 focus:ring-accent outline-none disabled:opacity-50 resize-none overflow-hidden"
           />
           <button
             type="submit"

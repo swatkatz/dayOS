@@ -303,6 +303,15 @@ PLANNING RULES:
 - A task with remaining_minutes > block duration CAN be scheduled — schedule what fits today, the rest goes on subsequent days.
 - Never schedule anything in a past time slot.
 
+CATEGORIES (use exactly one per block):
+- job: paid work, meetings, deliverables
+- interview: interview prep, leetcode, system design
+- project: personal/side projects
+- meal: cooking, meal prep, grocery shopping, eating
+- baby: childcare, baby-related tasks
+- exercise: workouts, walks, physical activity
+- admin: errands, chores, appointments, anything that doesn't fit above
+
 RESPONSE FORMAT:
 Respond ONLY with a JSON array. No explanation. No markdown. Just the array.
 Each element: { "id": "uuid-v4", "time": "HH:MM", "duration": 60, "title": "...", "category": "interview", "task_id": "uuid-or-null", "routine_id": "uuid-or-null", "notes": "...", "skipped": false }`)
