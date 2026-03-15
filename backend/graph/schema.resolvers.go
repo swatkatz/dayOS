@@ -11,6 +11,7 @@ import (
 	"dayos/graph/model"
 	"dayos/planner"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -409,14 +410,14 @@ func (r *mutationResolver) CompleteBlock(ctx context.Context, planID uuid.UUID, 
 		return nil, fmt.Errorf("Can only complete blocks on an accepted plan")
 	}
 	blocks := parseBlocks(plan.Blocks)
-	found := false
+	var completed *model.PlanBlock
 	for _, b := range blocks {
 		if b.ID == blockID {
 			b.Done = true
-			found = true
+			completed = b
 		}
 	}
-	if !found {
+	if completed == nil {
 		return nil, fmt.Errorf("Block not found")
 	}
 	data, err := marshalBlocks(blocks)
@@ -430,6 +431,15 @@ func (r *mutationResolver) CompleteBlock(ctx context.Context, planID uuid.UUID, 
 	if err != nil {
 		return nil, fmt.Errorf("updating blocks: %w", err)
 	}
+
+	// If the block is linked to a task, complete that task too
+	if completed.TaskID != nil {
+		if _, err := r.CompleteTask(ctx, *completed.TaskID); err != nil {
+			// Log but don't fail — block completion is the primary action
+			log.Printf("completing linked task %s: %v", completed.TaskID, err)
+		}
+	}
+
 	messages, err := r.DayPlanStore.GetPlanMessages(ctx, updated.ID)
 	if err != nil {
 		return nil, fmt.Errorf("fetching plan messages: %w", err)

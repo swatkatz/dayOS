@@ -289,3 +289,77 @@ func TestUpdateBlock_DraftPlanError(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
+
+// Completing a block with a taskId should also complete the linked task.
+func TestCompleteBlock_CompletesLinkedTask(t *testing.T) {
+	dayPlanStore := newMockDayPlanStore()
+	taskStore := newMockTaskStore()
+
+	task := factoryTask(taskStore, "Write tests")
+	taskID := uuid.UUID(task.ID.Bytes).String()
+
+	blocks := []map[string]any{
+		{"id": "block-1", "time": "09:00", "duration": 60, "title": "Write tests", "category": "project", "task_id": taskID, "skipped": false},
+		{"id": "block-2", "time": "10:00", "duration": 60, "title": "Exercise", "category": "exercise", "skipped": false},
+	}
+	blocksJSON, _ := json.Marshal(blocks)
+	plan := factoryDayPlan(dayPlanStore, "2026-03-15", "accepted", blocksJSON)
+
+	r := &graph.Resolver{DayPlanStore: dayPlanStore, TaskStore: taskStore}
+	planID := uuid.UUID(plan.ID.Bytes)
+
+	result, err := r.Mutation().CompleteBlock(context.Background(), planID, "block-1")
+	if err != nil {
+		t.Fatalf("CompleteBlock: %v", err)
+	}
+
+	// Block should be marked done
+	var completedBlock *model.PlanBlock
+	for _, b := range result.Blocks {
+		if b.ID == "block-1" {
+			completedBlock = b
+		}
+	}
+	if completedBlock == nil {
+		t.Fatal("block-1 not found")
+	}
+	if !completedBlock.Done {
+		t.Error("expected block-1 to be done")
+	}
+
+	// Task should also be completed
+	updated, err := taskStore.GetTask(context.Background(), task.ID)
+	if err != nil {
+		t.Fatalf("GetTask: %v", err)
+	}
+	if updated.IsCompleted == nil || !*updated.IsCompleted {
+		t.Error("expected linked task to be completed")
+	}
+}
+
+// Completing a block without a taskId should not error.
+func TestCompleteBlock_NoTask(t *testing.T) {
+	dayPlanStore := newMockDayPlanStore()
+	plan := factoryDayPlan(dayPlanStore, "2026-03-15", "accepted", threeBlocksJSON())
+
+	r := &graph.Resolver{DayPlanStore: dayPlanStore}
+	planID := uuid.UUID(plan.ID.Bytes)
+
+	result, err := r.Mutation().CompleteBlock(context.Background(), planID, "block-1")
+	if err != nil {
+		t.Fatalf("CompleteBlock: %v", err)
+	}
+
+	var completedBlock *model.PlanBlock
+	for _, b := range result.Blocks {
+		if b.ID == "block-1" {
+			completedBlock = b
+		}
+	}
+	if completedBlock == nil {
+		t.Fatal("block-1 not found")
+	}
+	if !completedBlock.Done {
+		t.Error("expected block-1 to be done")
+	}
+}
