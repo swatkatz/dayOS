@@ -15,6 +15,7 @@ const PLAN_FIELDS = gql`
       routineId
       notes
       skipped
+      done
     }
     messages {
       id
@@ -105,6 +106,46 @@ export const SKIP_BLOCK = gql`
   }
 `
 
+export const UNSKIP_BLOCK = gql`
+  mutation UnskipBlock($planId: UUID!, $blockId: String!) {
+    unskipBlock(planId: $planId, blockId: $blockId) {
+      id
+      blocks {
+        id
+        time
+        duration
+        title
+        category
+        taskId
+        routineId
+        notes
+        skipped
+        done
+      }
+    }
+  }
+`
+
+export const COMPLETE_BLOCK = gql`
+  mutation CompleteBlock($planId: UUID!, $blockId: String!) {
+    completeBlock(planId: $planId, blockId: $blockId) {
+      id
+      blocks {
+        id
+        time
+        duration
+        title
+        category
+        taskId
+        routineId
+        notes
+        skipped
+        done
+      }
+    }
+  }
+`
+
 export const UPDATE_BLOCK = gql`
   mutation UpdateBlock($planId: UUID!, $blockId: String!, $input: UpdateBlockInput!) {
     updateBlock(planId: $planId, blockId: $blockId, input: $input) {
@@ -120,6 +161,21 @@ export const UPDATE_BLOCK = gql`
         notes
         skipped
       }
+    }
+  }
+`
+
+export const GET_CALENDAR_EVENTS_TODAY = gql`
+  query CalendarEventsToday($date: Date!) {
+    calendarEvents(date: $date) {
+      events {
+        title
+        startTime
+        duration
+        allDay
+      }
+      version
+      connected
     }
   }
 `

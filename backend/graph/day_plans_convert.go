@@ -24,6 +24,7 @@ type jsonBlock struct {
 	RoutineID *string `json:"routine_id"`
 	Notes     *string `json:"notes"`
 	Skipped   bool    `json:"skipped"`
+	Done      bool    `json:"done"`
 }
 
 func (dayPlanConv) FromDB(p db.DayPlan, messages []db.PlanMessage) *model.DayPlan {
@@ -78,6 +79,7 @@ func parseBlocks(data []byte) []*model.PlanBlock {
 			Category: cat,
 			Notes:    b.Notes,
 			Skipped:  b.Skipped,
+			Done:     b.Done,
 		}
 		if b.TaskID != nil {
 			if uid, err := uuid.Parse(*b.TaskID); err == nil {
@@ -105,6 +107,7 @@ func marshalBlocks(blocks []*model.PlanBlock) ([]byte, error) {
 			Category: strings.ToLower(string(b.Category)),
 			Notes:    b.Notes,
 			Skipped:  b.Skipped,
+			Done:     b.Done,
 		}
 		if b.TaskID != nil {
 			s := b.TaskID.String()

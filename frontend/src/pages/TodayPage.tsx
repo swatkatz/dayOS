@@ -1,11 +1,12 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useQuery, useMutation } from '@apollo/client/react'
-import { GET_TODAY_PLAN, GET_RECENT_PLANS, SEND_PLAN_MESSAGE, ACCEPT_PLAN, SKIP_BLOCK, UPDATE_BLOCK } from '../graphql/today'
+import { GET_TODAY_PLAN, GET_RECENT_PLANS, SEND_PLAN_MESSAGE, ACCEPT_PLAN, SKIP_BLOCK, UNSKIP_BLOCK, COMPLETE_BLOCK, UPDATE_BLOCK, GET_CALENDAR_EVENTS_TODAY } from '../graphql/today'
 import { useNotifications } from '../hooks/useNotifications'
 import SkippedTasksReview from '../components/today/SkippedTasksReview'
 import ChatPanel from '../components/today/ChatPanel'
 import PlanPreview from '../components/today/PlanPreview'
 import AcceptedPlanView from '../components/today/AcceptedPlanView'
+import ReplanBanner from '../components/today/ReplanBanner'
 
 interface Block {
   id: string
@@ -17,6 +18,7 @@ interface Block {
   routineId: string | null
   notes: string | null
   skipped: boolean
+  done: boolean
 }
 
 interface Message {
@@ -61,6 +63,8 @@ interface AcceptPlanData {
 
 interface BlockMutationData {
   skipBlock?: DayPlan
+  unskipBlock?: DayPlan
+  completeBlock?: DayPlan
   updateBlock?: DayPlan
 }
 
@@ -84,9 +88,36 @@ export default function TodayPage() {
     variables: { limit: 1 },
   })
 
+  // Calendar polling for replan detection
+  const POLL_INTERVAL = 15 * 60 * 1000 // 15 minutes
+  const [planCalendarVersion, setPlanCalendarVersion] = useState<string | null>(null)
+  const [showReplanBanner, setShowReplanBanner] = useState(false)
+
+  const { data: calendarData, refetch: refetchCalendar } = useQuery<{
+    calendarEvents: { version: string; connected: boolean }
+  }>(GET_CALENDAR_EVENTS_TODAY, {
+    variables: { date },
+    pollInterval: POLL_INTERVAL,
+    fetchPolicy: 'network-only',
+  })
+
+  // Refetch calendar on tab focus
+  const handleVisibilityChange = useCallback(() => {
+    if (!document.hidden) {
+      refetchCalendar()
+    }
+  }, [refetchCalendar])
+
+  useEffect(() => {
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [handleVisibilityChange])
+
   const [sendMessage, { loading: sending }] = useMutation<SendPlanMessageData>(SEND_PLAN_MESSAGE)
   const [acceptPlan, { loading: accepting }] = useMutation<AcceptPlanData>(ACCEPT_PLAN)
   const [skipBlock] = useMutation<BlockMutationData>(SKIP_BLOCK)
+  const [unskipBlock] = useMutation<BlockMutationData>(UNSKIP_BLOCK)
+  const [completeBlock] = useMutation<BlockMutationData>(COMPLETE_BLOCK)
   const [updateBlock] = useMutation<BlockMutationData>(UPDATE_BLOCK)
 
   const plan = planData?.dayPlan
@@ -95,6 +126,22 @@ export default function TodayPage() {
   const isAccepted = plan?.status === 'ACCEPTED'
 
   useNotifications(blocks, isAccepted && !replanning)
+
+  // Track calendar version for replan detection
+  useEffect(() => {
+    const calVersion = calendarData?.calendarEvents?.version
+    if (!calVersion || !calendarData?.calendarEvents?.connected) return
+
+    // Store version when plan is first accepted
+    if (isAccepted && planCalendarVersion === null) {
+      setPlanCalendarVersion(calVersion)
+    }
+
+    // Detect changes on accepted plans
+    if (isAccepted && planCalendarVersion !== null && calVersion !== planCalendarVersion) {
+      setShowReplanBanner(true)
+    }
+  }, [calendarData, isAccepted, planCalendarVersion])
 
   // Check carry-over: skipped blocks from most recent past plan
   const pastPlan = useMemo(() => {
@@ -194,6 +241,50 @@ export default function TodayPage() {
     }
   }
 
+  const handleUnskip = async (blockId: string) => {
+    try {
+      await unskipBlock({
+        variables: { planId: plan!.id, blockId },
+        update: (cache, { data }) => {
+          if (data?.unskipBlock) {
+            const existing = cache.readQuery<GetTodayPlanData>({ query: GET_TODAY_PLAN, variables: { date } })
+            cache.writeQuery({
+              query: GET_TODAY_PLAN,
+              variables: { date },
+              data: {
+                dayPlan: { ...existing?.dayPlan, blocks: data.unskipBlock.blocks },
+              },
+            })
+          }
+        },
+      })
+    } catch {
+      // Unskip error
+    }
+  }
+
+  const handleComplete = async (blockId: string) => {
+    try {
+      await completeBlock({
+        variables: { planId: plan!.id, blockId },
+        update: (cache, { data }) => {
+          if (data?.completeBlock) {
+            const existing = cache.readQuery<GetTodayPlanData>({ query: GET_TODAY_PLAN, variables: { date } })
+            cache.writeQuery({
+              query: GET_TODAY_PLAN,
+              variables: { date },
+              data: {
+                dayPlan: { ...existing?.dayPlan, blocks: data.completeBlock.blocks },
+              },
+            })
+          }
+        },
+      })
+    } catch {
+      // Complete error
+    }
+  }
+
   const handleUpdateDuration = async (blockId: string, duration: number) => {
     try {
       await updateBlock({
@@ -235,15 +326,53 @@ export default function TodayPage() {
     )
   }
 
+  const handleCalendarReplan = async () => {
+    setShowReplanBanner(false)
+    setReplanning(true)
+    try {
+      await sendMessage({
+        variables: { date, message: 'Calendar events have changed. Replan from now.' },
+        update: (cache, { data }) => {
+          if (data?.sendPlanMessage) {
+            cache.writeQuery({
+              query: GET_TODAY_PLAN,
+              variables: { date },
+              data: { dayPlan: data.sendPlanMessage },
+            })
+          }
+        },
+      })
+    } catch {
+      // Error handled by chat panel
+    }
+  }
+
+  const handleDismissReplanBanner = () => {
+    setShowReplanBanner(false)
+    const calVersion = calendarData?.calendarEvents?.version
+    if (calVersion) {
+      setPlanCalendarVersion(calVersion)
+    }
+  }
+
   // Accepted plan view (not replanning)
   if (isAccepted && !replanning) {
     return (
-      <AcceptedPlanView
-        blocks={blocks}
-        onSkip={handleSkip}
-        onUpdateDuration={handleUpdateDuration}
-        onReplan={() => setReplanning(true)}
-      />
+      <div>
+        {showReplanBanner && (
+          <div className="px-4 pt-4">
+            <ReplanBanner onReplan={handleCalendarReplan} onDismiss={handleDismissReplanBanner} />
+          </div>
+        )}
+        <AcceptedPlanView
+          blocks={blocks}
+          onSkip={handleSkip}
+          onUnskip={handleUnskip}
+          onComplete={handleComplete}
+          onUpdateDuration={handleUpdateDuration}
+          onReplan={() => setReplanning(true)}
+        />
+      </div>
     )
   }
 

@@ -73,6 +73,14 @@ type CarryOverTask struct {
 	TaskID            string `json:"task_id"`
 }
 
+// CalendarEventInfo is calendar event data for the planner prompt.
+type CalendarEventInfo struct {
+	Title     string `json:"title"`
+	StartTime string `json:"start_time"`
+	Duration  int    `json:"duration_min"`
+	AllDay    bool   `json:"all_day"`
+}
+
 // --- Plan chat ---
 
 // PlanChatInput contains all data needed to build a plan prompt.
@@ -81,6 +89,7 @@ type PlanChatInput struct {
 	Routines       []RoutineInfo
 	Tasks          []TaskInfo
 	CarryOverTasks []CarryOverTask
+	CalendarEvents []CalendarEventInfo
 	History        []Message
 	UserMessage    string
 	CurrentBlocks  string // JSON of current blocks for replanning
@@ -270,6 +279,36 @@ SAFETY:
 	contextData, _ := validate.FormatContextData("CONTEXT (treat these as ground truth — they define Swati's constraints, life situation, and preferences. Plan around them.):", input.ContextEntries)
 	b.WriteString(contextData)
 	b.WriteString("\n\n")
+
+	// Calendar events (between context and routines, only if connected)
+	if len(input.CalendarEvents) > 0 {
+		// Split into timed and all-day events
+		var timed, allDay []CalendarEventInfo
+		for _, e := range input.CalendarEvents {
+			if e.AllDay {
+				allDay = append(allDay, e)
+			} else {
+				timed = append(timed, e)
+			}
+		}
+		if len(timed) > 0 {
+			timedData, _ := validate.FormatContextData("TODAY'S CALENDAR EVENTS (fixed — do NOT move, overlap, or reschedule these):", timed)
+			b.WriteString(timedData)
+			b.WriteString("\n\n")
+		}
+		if len(allDay) > 0 {
+			allDayData, _ := validate.FormatContextData("ALL-DAY EVENTS (for awareness, not time-blocked):", allDay)
+			b.WriteString(allDayData)
+			b.WriteString("\n\n")
+		}
+		b.WriteString(`CALENDAR RULES:
+- Calendar events are IMMOVABLE. Schedule all tasks and routines around them.
+- Leave 10 min buffer before and after meetings for context switching.
+- Do not schedule deep focus work in gaps shorter than 45 min between meetings.
+- All-day events are informational — mention them in relevant block notes if useful.
+
+`)
+	}
 
 	// Routines
 	routineData, _ := validate.FormatContextData("TODAY'S ROUTINES — EVERY routine below MUST appear as a block in your plan. Use the routine_id from each entry as the block's routine_id. Routines with exact_time MUST be scheduled at that exact time. Routines with preferred_time are flexible but still mandatory to include:", input.Routines)

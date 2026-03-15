@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"dayos/calendar"
 	"dayos/db"
 	"dayos/planner"
 
@@ -772,6 +773,48 @@ func factoryPlanMessage(store *mockDayPlanStore, planID pgtype.UUID, role, conte
 		panic(fmt.Sprintf("factoryPlanMessage: %v", err))
 	}
 	return msg
+}
+
+// --- Mock CalendarService ---
+
+type mockCalendarService struct {
+	connected bool
+	events    []calendar.Event
+	version   string
+	stored    bool
+}
+
+func (m *mockCalendarService) GetEvents(_ context.Context, _ time.Time) (*calendar.EventsResult, error) {
+	return &calendar.EventsResult{
+		Events:    m.events,
+		Version:   m.version,
+		Connected: m.connected,
+	}, nil
+}
+
+func (m *mockCalendarService) ExchangeCodeAndStore(_ context.Context, _ string) error {
+	m.stored = true
+	m.connected = true
+	return nil
+}
+
+func (m *mockCalendarService) Disconnect(_ context.Context) error {
+	m.connected = false
+	m.events = nil
+	m.version = ""
+	return nil
+}
+
+func (m *mockCalendarService) IsConnected(_ context.Context) (bool, error) {
+	return m.connected, nil
+}
+
+func (m *mockCalendarService) GetStatus(_ context.Context) (*calendar.StatusResult, error) {
+	if !m.connected {
+		return &calendar.StatusResult{Connected: false}, nil
+	}
+	name := "primary"
+	return &calendar.StatusResult{Connected: true, CalendarName: &name}, nil
 }
 
 func factoryTask(store *mockTaskStore, title string, overrides ...func(*db.CreateTaskParams)) db.Task {

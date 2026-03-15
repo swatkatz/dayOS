@@ -9,11 +9,14 @@ interface Block {
   category: string
   notes: string | null
   skipped: boolean
+  done: boolean
 }
 
 interface Props {
   block: Block
   onSkip?: (blockId: string) => void
+  onUnskip?: (blockId: string) => void
+  onComplete?: (blockId: string) => void
   onUpdateDuration?: (blockId: string, duration: number) => void
   onUpdateBlock?: (blockId: string, updates: Partial<Block>) => void
   onDelete?: (blockId: string) => void
@@ -36,7 +39,7 @@ function endTime(time: string, duration: number): string {
 
 const CATEGORIES = ['JOB', 'INTERVIEW', 'PROJECT', 'MEAL', 'BABY', 'EXERCISE', 'ADMIN']
 
-export default function BlockCard({ block, onSkip, onUpdateDuration, onUpdateBlock, onDelete, readOnly, active }: Props) {
+export default function BlockCard({ block, onSkip, onUnskip, onComplete, onUpdateDuration, onUpdateBlock, onDelete, readOnly, active }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draftDuration, setDraftDuration] = useState(String(block.duration))
@@ -78,7 +81,14 @@ export default function BlockCard({ block, onSkip, onUpdateDuration, onUpdateBlo
   }
 
   return (
-    <div className={`rounded-lg bg-bg-surface ${block.skipped ? 'opacity-50' : ''} ${active ? 'ring-2 ring-accent ring-offset-1 ring-offset-bg-primary' : ''}`} style={{ borderLeft: `4px solid ${color}` }}>
+    <div
+      className={`rounded-lg bg-bg-surface ${block.skipped ? 'opacity-50' : ''} ${
+        active
+          ? 'ring-2 ring-accent shadow-[0_0_12px_rgba(197,165,90,0.3)]'
+          : ''
+      }`}
+      style={{ borderLeft: `4px solid ${color}` }}
+    >
       <div className="relative p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
@@ -115,7 +125,7 @@ export default function BlockCard({ block, onSkip, onUpdateDuration, onUpdateBlo
               )}
             </div>
 
-            <p className={`font-medium text-text-primary ${block.skipped ? 'line-through' : ''}`}>
+            <p className={`font-medium text-text-primary ${block.skipped ? 'line-through text-text-secondary' : ''}`}>
               {block.title}
             </p>
 
@@ -130,9 +140,29 @@ export default function BlockCard({ block, onSkip, onUpdateDuration, onUpdateBlo
 
           <div className="flex items-center gap-2 flex-shrink-0">
             {block.skipped ? (
-              <span className="text-text-secondary text-xs">Skipped</span>
+              <>
+                <span className="text-text-secondary text-xs">Skipped</span>
+                {!readOnly && onUnskip && (
+                  <button
+                    onClick={() => onUnskip(block.id)}
+                    className="text-text-secondary hover:text-accent text-xs transition-colors"
+                    title="Undo skip"
+                  >
+                    Undo
+                  </button>
+                )}
+              </>
             ) : (
               <>
+                {!readOnly && onComplete && (
+                  <button
+                    onClick={() => onComplete(block.id)}
+                    className="text-text-secondary hover:text-emerald-400 text-lg transition-colors"
+                    title="Mark as done"
+                  >
+                    &#x2713;
+                  </button>
+                )}
                 {editable && (
                   <button
                     onClick={() => setExpanded(!expanded)}

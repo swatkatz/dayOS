@@ -10,22 +10,27 @@ interface Block {
   routineId: string | null
   notes: string | null
   skipped: boolean
+  done: boolean
 }
 
 interface Props {
   blocks: Block[]
   onSkip: (blockId: string) => void
+  onUnskip: (blockId: string) => void
+  onComplete: (blockId: string) => void
   onUpdateDuration: (blockId: string, duration: number) => void
   onReplan: () => void
 }
 
-export default function AcceptedPlanView({ blocks, onSkip, onUpdateDuration, onReplan }: Props) {
+export default function AcceptedPlanView({ blocks, onSkip, onUnskip, onComplete, onUpdateDuration, onReplan }: Props) {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="mb-6">
         <BlockList
           blocks={blocks}
           onSkip={onSkip}
+          onUnskip={onUnskip}
+          onComplete={onComplete}
           onUpdateDuration={onUpdateDuration}
           showNow
         />

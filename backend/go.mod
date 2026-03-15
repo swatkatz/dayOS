@@ -5,6 +5,7 @@ go 1.25.3
 require (
 	github.com/99designs/gqlgen v0.17.87
 	github.com/anthropics/anthropic-sdk-go v1.26.0
+	github.com/bradfitz/gomemcache v0.0.0-20250403215159-8d39553ac7cf
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.8.0

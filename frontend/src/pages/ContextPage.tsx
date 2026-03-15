@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useQuery, useMutation } from '@apollo/client/react'
-import { GET_CONTEXT_ENTRIES, UPSERT_CONTEXT, TOGGLE_CONTEXT, DELETE_CONTEXT } from '../graphql/manage'
+import { GET_CONTEXT_ENTRIES, UPSERT_CONTEXT, TOGGLE_CONTEXT, DELETE_CONTEXT, GET_GOOGLE_CALENDAR_STATUS, CONNECT_GOOGLE_CALENDAR, DISCONNECT_GOOGLE_CALENDAR } from '../graphql/manage'
 
 interface ContextEntry {
   id: string
@@ -46,6 +46,53 @@ export default function ContextPage() {
   })
   const [deleteContext] = useMutation(DELETE_CONTEXT, {
     refetchQueries: [{ query: GET_CONTEXT_ENTRIES }],
+  })
+
+  // Google Calendar integration
+  const { data: calStatusData } = useQuery<{
+    googleCalendarStatus: { connected: boolean; calendarName: string | null }
+  }>(GET_GOOGLE_CALENDAR_STATUS)
+  const [connectCalendar] = useMutation(CONNECT_GOOGLE_CALENDAR, {
+    refetchQueries: [{ query: GET_GOOGLE_CALENDAR_STATUS }],
+  })
+  const [disconnectCalendar] = useMutation(DISCONNECT_GOOGLE_CALENDAR, {
+    refetchQueries: [{ query: GET_GOOGLE_CALENDAR_STATUS }],
+  })
+
+  const calendarStatus = calStatusData?.googleCalendarStatus
+
+  const handleConnectCalendar = useCallback(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+    const redirectUri = import.meta.env.VITE_GOOGLE_REDIRECT_URI
+    if (!clientId || !redirectUri) return
+
+    const scope = 'https://www.googleapis.com/auth/calendar.events.readonly'
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope,
+      access_type: 'offline',
+      prompt: 'consent',
+    })
+    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
+  }, [])
+
+  const handleDisconnectCalendar = useCallback(async () => {
+    if (window.confirm('Disconnect Google Calendar?')) {
+      await disconnectCalendar()
+    }
+  }, [disconnectCalendar])
+
+  // Handle OAuth callback — check for code in URL params
+  useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('code')
+    if (code) {
+      // Clear the URL params
+      window.history.replaceState({}, '', window.location.pathname)
+      connectCalendar({ variables: { code } })
+    }
   })
 
   const entries: ContextEntry[] = data?.contextEntries ?? []
@@ -105,6 +152,45 @@ export default function ContextPage() {
   return (
     <div className="max-w-2xl mx-auto">
       <h1 className="text-2xl font-semibold text-text-primary mb-6">Context</h1>
+
+      {/* Google Calendar Integration */}
+      <div className="mb-8">
+        <h2 className="text-sm font-medium text-text-secondary uppercase tracking-wide border-b border-border-default pb-2 mb-3">
+          Google Calendar
+        </h2>
+        <div className="bg-bg-surface rounded-lg p-4 border border-border-default">
+          {calendarStatus?.connected ? (
+            <div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-text-primary text-sm font-medium">Connected</p>
+                  <p className="text-text-secondary text-sm mt-0.5">
+                    Calendar: {calendarStatus.calendarName ?? 'Primary'}
+                  </p>
+                </div>
+                <button
+                  onClick={handleDisconnectCalendar}
+                  className="px-3 py-1.5 text-red-400 hover:text-red-300 border border-red-400/30 hover:border-red-300/50 rounded text-sm transition-colors"
+                >
+                  Disconnect
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <p className="text-text-secondary text-sm mb-3">
+                Connect your Google Calendar to automatically include meetings in your daily plan.
+              </p>
+              <button
+                onClick={handleConnectCalendar}
+                className="px-4 py-2 bg-accent text-black rounded text-sm font-medium hover:bg-accent-hover transition-colors"
+              >
+                Connect Google Calendar
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
 
       {visibleCategories.map((cat) => {
         const catEntries = grouped[cat] ?? []

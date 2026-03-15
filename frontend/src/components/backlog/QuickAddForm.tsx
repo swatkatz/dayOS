@@ -15,6 +15,9 @@ export default function QuickAddForm({ onClose }: Props) {
   const [category, setCategory] = useState('ADMIN')
   const [priority, setPriority] = useState('MEDIUM')
   const [estimatedMinutes, setEstimatedMinutes] = useState(60)
+  const [deadlineType, setDeadlineType] = useState('')
+  const [deadlineDate, setDeadlineDate] = useState('')
+  const [deadlineDays, setDeadlineDays] = useState('')
 
   const [createTask, { loading }] = useMutation(CREATE_TASK, {
     refetchQueries: [{ query: GET_TASKS, variables: { includeCompleted: true } }],
@@ -24,17 +27,20 @@ export default function QuickAddForm({ onClose }: Props) {
     e.preventDefault()
     if (!title.trim()) return
 
-    await createTask({
-      variables: {
-        input: {
-          title: title.trim(),
-          category,
-          priority,
-          estimatedMinutes,
-          ...(notes.trim() ? { notes: notes.trim() } : {}),
-        },
-      },
-    })
+    const input: Record<string, unknown> = {
+      title: title.trim(),
+      category,
+      priority,
+      estimatedMinutes,
+    }
+    if (notes.trim()) input.notes = notes.trim()
+    if (deadlineType) {
+      input.deadlineType = deadlineType
+      if (deadlineType === 'HARD' && deadlineDate) input.deadlineDate = deadlineDate
+      if (deadlineType === 'HORIZON' && deadlineDays) input.deadlineDays = parseInt(deadlineDays)
+    }
+
+    await createTask({ variables: { input } })
     onClose()
   }
 
@@ -94,6 +100,42 @@ export default function QuickAddForm({ onClose }: Props) {
           />
           <span className="text-text-secondary text-sm">min</span>
         </div>
+
+        <select
+          value={deadlineType}
+          onChange={(e) => {
+            setDeadlineType(e.target.value)
+            if (!e.target.value) { setDeadlineDate(''); setDeadlineDays('') }
+          }}
+          className="bg-bg-surface border border-border-default rounded px-3 py-2 text-text-primary focus:border-accent outline-none"
+        >
+          <option value="">No deadline</option>
+          <option value="HARD">Hard date</option>
+          <option value="HORIZON">Horizon</option>
+        </select>
+
+        {deadlineType === 'HARD' && (
+          <input
+            type="date"
+            value={deadlineDate}
+            onChange={(e) => setDeadlineDate(e.target.value)}
+            className="bg-bg-surface border border-border-default rounded px-3 py-2 text-text-primary focus:border-accent outline-none"
+          />
+        )}
+
+        {deadlineType === 'HORIZON' && (
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              value={deadlineDays}
+              onChange={(e) => setDeadlineDays(e.target.value)}
+              min={1}
+              placeholder="days"
+              className="w-20 bg-bg-surface border border-border-default rounded px-3 py-2 text-text-primary focus:border-accent outline-none"
+            />
+            <span className="text-text-secondary text-sm">days</span>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2 justify-end">

@@ -361,6 +361,82 @@ func (r *mutationResolver) SkipBlock(ctx context.Context, planID uuid.UUID, bloc
 	return dayPlanConverter.FromDB(updated, messages), nil
 }
 
+// UnskipBlock is the resolver for the unskipBlock field.
+func (r *mutationResolver) UnskipBlock(ctx context.Context, planID uuid.UUID, blockID string) (*model.DayPlan, error) {
+	plan, err := r.DayPlanStore.GetDayPlanByID(ctx, uuidToPgtype(planID))
+	if err != nil {
+		return nil, fmt.Errorf("plan not found: %w", err)
+	}
+	if plan.Status != "accepted" {
+		return nil, fmt.Errorf("Can only unskip blocks on an accepted plan")
+	}
+	blocks := parseBlocks(plan.Blocks)
+	found := false
+	for _, b := range blocks {
+		if b.ID == blockID {
+			b.Skipped = false
+			found = true
+		}
+	}
+	if !found {
+		return nil, fmt.Errorf("Block not found")
+	}
+	data, err := marshalBlocks(blocks)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling blocks: %w", err)
+	}
+	updated, err := r.DayPlanStore.UpdateDayPlanBlocks(ctx, db.UpdateDayPlanBlocksParams{
+		ID:     plan.ID,
+		Blocks: data,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("updating blocks: %w", err)
+	}
+	messages, err := r.DayPlanStore.GetPlanMessages(ctx, updated.ID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching plan messages: %w", err)
+	}
+	return dayPlanConverter.FromDB(updated, messages), nil
+}
+
+// CompleteBlock is the resolver for the completeBlock field.
+func (r *mutationResolver) CompleteBlock(ctx context.Context, planID uuid.UUID, blockID string) (*model.DayPlan, error) {
+	plan, err := r.DayPlanStore.GetDayPlanByID(ctx, uuidToPgtype(planID))
+	if err != nil {
+		return nil, fmt.Errorf("plan not found: %w", err)
+	}
+	if plan.Status != "accepted" {
+		return nil, fmt.Errorf("Can only complete blocks on an accepted plan")
+	}
+	blocks := parseBlocks(plan.Blocks)
+	found := false
+	for _, b := range blocks {
+		if b.ID == blockID {
+			b.Done = true
+			found = true
+		}
+	}
+	if !found {
+		return nil, fmt.Errorf("Block not found")
+	}
+	data, err := marshalBlocks(blocks)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling blocks: %w", err)
+	}
+	updated, err := r.DayPlanStore.UpdateDayPlanBlocks(ctx, db.UpdateDayPlanBlocksParams{
+		ID:     plan.ID,
+		Blocks: data,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("updating blocks: %w", err)
+	}
+	messages, err := r.DayPlanStore.GetPlanMessages(ctx, updated.ID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching plan messages: %w", err)
+	}
+	return dayPlanConverter.FromDB(updated, messages), nil
+}
+
 // UpdateBlock is the resolver for the updateBlock field.
 func (r *mutationResolver) UpdateBlock(ctx context.Context, planID uuid.UUID, blockID string, input model.UpdateBlockInput) (*model.DayPlan, error) {
 	if input.Duration != nil && *input.Duration <= 0 {
@@ -380,6 +456,9 @@ func (r *mutationResolver) UpdateBlock(ctx context.Context, planID uuid.UUID, bl
 			found = true
 			if input.Skipped != nil {
 				b.Skipped = *input.Skipped
+			}
+			if input.Done != nil {
+				b.Done = *input.Done
 			}
 			if input.Time != nil {
 				b.Time = *input.Time
@@ -616,6 +695,28 @@ func (r *mutationResolver) ResolveSkippedBlock(ctx context.Context, planID uuid.
 	return true, nil
 }
 
+// ConnectGoogleCalendar is the resolver for the connectGoogleCalendar field.
+func (r *mutationResolver) ConnectGoogleCalendar(ctx context.Context, code string) (bool, error) {
+	if r.Calendar == nil {
+		return false, fmt.Errorf("Google Calendar integration not configured")
+	}
+	if err := r.Calendar.ExchangeCodeAndStore(ctx, code); err != nil {
+		return false, fmt.Errorf("connecting Google Calendar: %w", err)
+	}
+	return true, nil
+}
+
+// DisconnectGoogleCalendar is the resolver for the disconnectGoogleCalendar field.
+func (r *mutationResolver) DisconnectGoogleCalendar(ctx context.Context) (bool, error) {
+	if r.Calendar == nil {
+		return false, fmt.Errorf("Google Calendar integration not configured")
+	}
+	if err := r.Calendar.Disconnect(ctx); err != nil {
+		return false, fmt.Errorf("disconnecting Google Calendar: %w", err)
+	}
+	return true, nil
+}
+
 // Tasks is the resolver for the tasks field.
 func (r *queryResolver) Tasks(ctx context.Context, category *model.Category, includeCompleted *bool) ([]*model.Task, error) {
 	var catStr *string
@@ -736,6 +837,50 @@ func (r *queryResolver) TaskConversation(ctx context.Context, id uuid.UUID) (*mo
 		return nil, fmt.Errorf("fetching messages: %w", err)
 	}
 	return taskConversationConverter.FromDB(conv, messages), nil
+}
+
+// CalendarEvents is the resolver for the calendarEvents field.
+func (r *queryResolver) CalendarEvents(ctx context.Context, date model.Date) (*model.CalendarEventsPayload, error) {
+	if r.Calendar == nil {
+		return &model.CalendarEventsPayload{
+			Events:    []*model.CalendarEvent{},
+			Version:   "",
+			Connected: false,
+		}, nil
+	}
+	result, err := r.Calendar.GetEvents(ctx, date.Time)
+	if err != nil {
+		return nil, fmt.Errorf("fetching calendar events: %w", err)
+	}
+	events := make([]*model.CalendarEvent, len(result.Events))
+	for i, e := range result.Events {
+		events[i] = &model.CalendarEvent{
+			Title:     e.Title,
+			StartTime: e.StartTime,
+			Duration:  e.Duration,
+			AllDay:    e.AllDay,
+		}
+	}
+	return &model.CalendarEventsPayload{
+		Events:    events,
+		Version:   result.Version,
+		Connected: result.Connected,
+	}, nil
+}
+
+// GoogleCalendarStatus is the resolver for the googleCalendarStatus field.
+func (r *queryResolver) GoogleCalendarStatus(ctx context.Context) (*model.GoogleCalendarStatus, error) {
+	if r.Calendar == nil {
+		return &model.GoogleCalendarStatus{Connected: false}, nil
+	}
+	status, err := r.Calendar.GetStatus(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("checking calendar status: %w", err)
+	}
+	return &model.GoogleCalendarStatus{
+		Connected:    status.Connected,
+		CalendarName: status.CalendarName,
+	}, nil
 }
 
 // Mutation returns MutationResolver implementation.

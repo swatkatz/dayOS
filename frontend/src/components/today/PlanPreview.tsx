@@ -11,6 +11,7 @@ interface Block {
   routineId: string | null
   notes: string | null
   skipped: boolean
+  done: boolean
 }
 
 interface Props {

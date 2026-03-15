@@ -110,6 +110,25 @@ type PlanBlock {
   routineId: UUID
   notes:     String
   skipped:   Boolean!
+  done:      Boolean!
+}
+
+type CalendarEvent {
+  title:     String!
+  startTime: String!
+  duration:  Int!
+  allDay:    Boolean!
+}
+
+type CalendarEventsPayload {
+  events:    [CalendarEvent!]!
+  version:   String!
+  connected: Boolean!
+}
+
+type GoogleCalendarStatus {
+  connected:    Boolean!
+  calendarName: String
 }
 
 type DayPlan {
@@ -193,6 +212,7 @@ input UpsertContextInput {
 
 input UpdateBlockInput {
   skipped:  Boolean
+  done:     Boolean
   time:     String
   duration: Int
   notes:    String
@@ -208,6 +228,8 @@ type Query {
   dayPlan(date: Date!): DayPlan
   recentPlans(limit: Int): [DayPlan!]!
   taskConversation(id: UUID!): TaskConversation
+  calendarEvents(date: Date!): CalendarEventsPayload!
+  googleCalendarStatus: GoogleCalendarStatus!
 }
 
 type Mutation {
@@ -233,6 +255,8 @@ type Mutation {
 
   # Block actions
   skipBlock(planId: UUID!, blockId: String!): DayPlan!
+  unskipBlock(planId: UUID!, blockId: String!): DayPlan!
+  completeBlock(planId: UUID!, blockId: String!): DayPlan!
   updateBlock(planId: UUID!, blockId: String!, input: UpdateBlockInput!): DayPlan!
 
   # Task scoping chat
@@ -242,4 +266,8 @@ type Mutation {
 
   # Carry-over
   resolveSkippedBlock(planId: UUID!, blockId: String!, intentional: Boolean!): Boolean!
+
+  # Google Calendar
+  connectGoogleCalendar(code: String!): Boolean!
+  disconnectGoogleCalendar: Boolean!
 }

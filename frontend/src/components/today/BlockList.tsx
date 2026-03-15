@@ -12,11 +12,14 @@ interface Block {
   routineId: string | null
   notes: string | null
   skipped: boolean
+  done: boolean
 }
 
 interface Props {
   blocks: Block[]
   onSkip?: (blockId: string) => void
+  onUnskip?: (blockId: string) => void
+  onComplete?: (blockId: string) => void
   onUpdateDuration?: (blockId: string, duration: number) => void
   onUpdateBlock?: (blockId: string, updates: Partial<Block>) => void
   onDelete?: (blockId: string) => void
@@ -25,7 +28,7 @@ interface Props {
   showNow?: boolean
 }
 
-export default function BlockList({ blocks, onSkip, onUpdateDuration, onUpdateBlock, onDelete, onReorder, readOnly, showNow }: Props) {
+export default function BlockList({ blocks, onSkip, onUnskip, onComplete, onUpdateDuration, onUpdateBlock, onDelete, onReorder, readOnly, showNow }: Props) {
   const sorted = [...blocks].sort((a, b) => a.time.localeCompare(b.time))
   const nowPosition = useNowPosition(sorted)
   const activeBlockId = useActiveBlockId(sorted)
@@ -100,39 +103,59 @@ export default function BlockList({ blocks, onSkip, onUpdateDuration, onUpdateBl
 
   const draggable = !readOnly && !!onReorder
 
+  // For now position calculation, use all blocks including done ones
+  // But only render non-done blocks
+  const visibleBlocks = sorted.filter((b) => !b.done)
+
   return (
     <div className="space-y-2">
-      {sorted.map((block, i) => (
-        <div
-          key={block.id}
-          draggable={draggable && !block.skipped}
-          onDragStart={(e) => handleDragStart(e, block.id)}
-          onDragEnd={handleDragEnd}
-          onDragEnter={(e) => handleDragEnter(e, i)}
-          onDragLeave={handleDragLeave}
-          onDragOver={handleDragOver}
-          onDrop={(e) => handleDrop(e, i)}
-          className={`${draggable && !block.skipped ? 'cursor-grab active:cursor-grabbing' : ''} ${
-            draggedId === block.id ? 'opacity-30' : ''
-          } ${
-            dropTargetIdx === i && draggedId !== block.id
-              ? 'border-t-2 border-accent'
-              : ''
-          } transition-opacity`}
-        >
-          {showNow && nowPosition === i && <NowIndicator blocks={sorted} />}
-          <BlockCard
-            block={block}
-            onSkip={onSkip}
-            onUpdateDuration={onUpdateDuration}
-            onUpdateBlock={onUpdateBlock}
-            onDelete={onDelete}
-            readOnly={readOnly}
-            active={showNow && activeBlockId === block.id}
-          />
-        </div>
-      ))}
+      {sorted.map((block, i) => {
+        // Show NOW indicator at correct position even for done blocks
+        const nowHere = showNow && nowPosition === i
+        if (block.done) {
+          // Still render the NOW indicator if it falls here
+          return nowHere ? <NowIndicator key={`now-${i}`} blocks={sorted} /> : null
+        }
+        return (
+          <div
+            key={block.id}
+            draggable={draggable && !block.skipped}
+            onDragStart={(e) => handleDragStart(e, block.id)}
+            onDragEnd={handleDragEnd}
+            onDragEnter={(e) => handleDragEnter(e, i)}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, i)}
+            className={`${draggable && !block.skipped ? 'cursor-grab active:cursor-grabbing' : ''} ${
+              draggedId === block.id ? 'opacity-30' : ''
+            } ${
+              dropTargetIdx === i && draggedId !== block.id
+                ? 'border-t-2 border-accent'
+                : ''
+            } transition-opacity`}
+          >
+            {nowHere && <NowIndicator blocks={sorted} />}
+            <BlockCard
+              block={block}
+              onSkip={onSkip}
+              onUnskip={onUnskip}
+              onComplete={onComplete}
+              onUpdateDuration={onUpdateDuration}
+              onUpdateBlock={onUpdateBlock}
+              onDelete={onDelete}
+              readOnly={readOnly}
+              active={showNow && activeBlockId === block.id}
+            />
+          </div>
+        )
+      })}
       {showNow && nowPosition === sorted.length && <NowIndicator blocks={sorted} />}
+      {/* Show done count summary */}
+      {visibleBlocks.length < sorted.length && (
+        <div className="text-center text-text-secondary text-sm py-2">
+          {sorted.length - visibleBlocks.length} block{sorted.length - visibleBlocks.length > 1 ? 's' : ''} done
+        </div>
+      )}
     </div>
   )
 }

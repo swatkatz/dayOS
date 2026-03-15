@@ -381,3 +381,53 @@ func TestParseTaskProposalQuestion(t *testing.T) {
 		t.Error("expected nil proposal for question status")
 	}
 }
+
+// Test anchor (calendar 11): prompt includes calendar events section when events present
+func TestSystemPromptIncludesCalendarEvents(t *testing.T) {
+	svc := &Service{Client: &mockAIClient{}, Model: "test"}
+	input := PlanChatInput{
+		CalendarEvents: []CalendarEventInfo{
+			{Title: "Team standup", StartTime: "09:30", Duration: 30, AllDay: false},
+			{Title: "Design review", StartTime: "13:00", Duration: 60, AllDay: false},
+			{Title: "Elijah's birthday", AllDay: true},
+		},
+		UserMessage: "Plan my day",
+	}
+	prompt := svc.buildPlanSystemPrompt(input)
+	if !strings.Contains(prompt, "TODAY'S CALENDAR EVENTS") {
+		t.Error("expected TODAY'S CALENDAR EVENTS section in prompt")
+	}
+	if !strings.Contains(prompt, "Team standup") {
+		t.Error("expected 'Team standup' in prompt")
+	}
+	if !strings.Contains(prompt, "ALL-DAY EVENTS") {
+		t.Error("expected ALL-DAY EVENTS section in prompt")
+	}
+	if !strings.Contains(prompt, "Elijah's birthday") {
+		t.Error("expected 'Elijah's birthday' in prompt")
+	}
+	if !strings.Contains(prompt, "CALENDAR RULES") {
+		t.Error("expected CALENDAR RULES section in prompt")
+	}
+	if !strings.Contains(prompt, "IMMOVABLE") {
+		t.Error("expected IMMOVABLE instruction in prompt")
+	}
+	if !strings.Contains(prompt, "<user-data>") {
+		t.Error("expected <user-data> tags around calendar events")
+	}
+}
+
+// Test anchor (calendar 12): prompt omits calendar section when no events
+func TestSystemPromptOmitsCalendarWhenNotConnected(t *testing.T) {
+	svc := &Service{Client: &mockAIClient{}, Model: "test"}
+	input := PlanChatInput{
+		UserMessage: "Plan my day",
+	}
+	prompt := svc.buildPlanSystemPrompt(input)
+	if strings.Contains(prompt, "TODAY'S CALENDAR EVENTS") {
+		t.Error("should not include calendar section when no events")
+	}
+	if strings.Contains(prompt, "CALENDAR RULES") {
+		t.Error("should not include CALENDAR RULES when no events")
+	}
+}

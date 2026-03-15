@@ -19,4 +19,5 @@ type Resolver struct {
 	DayPlanStore          DayPlanStore
 	TaskConversationStore TaskConversationStore
 	Planner               PlannerService
+	Calendar              CalendarService
 }

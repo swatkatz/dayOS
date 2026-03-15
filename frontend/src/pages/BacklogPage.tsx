@@ -32,6 +32,9 @@ interface Task {
     priority: string
     estimatedMinutes: number | null
     actualMinutes: number
+    deadlineType: string | null
+    deadlineDate: string | null
+    deadlineDays: number | null
     notes: string | null
     isCompleted: boolean
     completedAt: string | null

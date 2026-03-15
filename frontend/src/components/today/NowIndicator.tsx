@@ -83,9 +83,9 @@ export default function NowIndicator({ blocks }: Props) {
   if (position < 0) return null
 
   return (
-    <div ref={ref} className="flex items-center gap-2 py-1" data-position={position}>
-      <span className="text-xs font-bold text-accent">NOW</span>
-      <div className="flex-1 border-t-2 border-dashed border-accent" />
+    <div ref={ref} className="flex items-center gap-2 py-2" data-position={position}>
+      <span className="text-xs font-bold text-accent tracking-wider drop-shadow-[0_0_6px_rgba(197,165,90,0.6)]">NOW</span>
+      <div className="flex-1 h-[3px] bg-accent rounded-full shadow-[0_0_8px_rgba(197,165,90,0.5)]" />
     </div>
   )
 }

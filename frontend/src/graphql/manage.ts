@@ -120,6 +120,42 @@ export const GET_RECENT_PLANS_FULL = gql`
   }
 `
 
+export const GET_CALENDAR_EVENTS = gql`
+  query CalendarEvents($date: Date!) {
+    calendarEvents(date: $date) {
+      events {
+        title
+        startTime
+        duration
+        allDay
+      }
+      version
+      connected
+    }
+  }
+`
+
+export const GET_GOOGLE_CALENDAR_STATUS = gql`
+  query GoogleCalendarStatus {
+    googleCalendarStatus {
+      connected
+      calendarName
+    }
+  }
+`
+
+export const CONNECT_GOOGLE_CALENDAR = gql`
+  mutation ConnectGoogleCalendar($code: String!) {
+    connectGoogleCalendar(code: $code)
+  }
+`
+
+export const DISCONNECT_GOOGLE_CALENDAR = gql`
+  mutation DisconnectGoogleCalendar {
+    disconnectGoogleCalendar
+  }
+`
+
 export const GET_DAY_PLAN = gql`
   query DayPlan($date: Date!) {
     dayPlan(date: $date) {

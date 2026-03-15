@@ -64,6 +64,15 @@ func (r *mutationResolver) buildPlanChatInput(ctx context.Context, plan db.DayPl
 	if err != nil {
 		return input, fmt.Errorf("listing tasks: %w", err)
 	}
+
+	// Index parent tasks so subtasks can inherit deadlines
+	parentDeadlines := make(map[string]db.Task)
+	for _, t := range tasks {
+		if !t.ParentID.Valid {
+			parentDeadlines[uuid.UUID(t.ID.Bytes).String()] = t
+		}
+	}
+
 	var taskData []planner.TaskData
 	for _, t := range tasks {
 		td := planner.TaskData{
@@ -87,12 +96,42 @@ func (r *mutationResolver) buildPlanChatInput(ctx context.Context, plan db.DayPl
 		if t.DeadlineDays != nil {
 			td.DeadlineDays = int(*t.DeadlineDays)
 		}
+		// Inherit deadline from parent if subtask has none
+		if t.ParentID.Valid && td.DeadlineType == "" {
+			parentID := uuid.UUID(t.ParentID.Bytes).String()
+			if parent, ok := parentDeadlines[parentID]; ok {
+				if parent.DeadlineType != nil {
+					td.DeadlineType = *parent.DeadlineType
+				}
+				if parent.DeadlineDate.Valid {
+					td.DeadlineDate = parent.DeadlineDate.Time.Format("2006-01-02")
+				}
+				if parent.DeadlineDays != nil {
+					td.DeadlineDays = int(*parent.DeadlineDays)
+				}
+			}
+		}
 		if t.TimesDeferred != nil {
 			td.TimesDeferred = int(*t.TimesDeferred)
 		}
 		taskData = append(taskData, td)
 	}
 	input.Tasks = planner.FormatTaskBacklog(taskData)
+
+	// Gather calendar events if connected
+	if r.Calendar != nil {
+		calResult, calErr := r.Calendar.GetEvents(ctx, planDate)
+		if calErr == nil && calResult.Connected {
+			for _, e := range calResult.Events {
+				input.CalendarEvents = append(input.CalendarEvents, planner.CalendarEventInfo{
+					Title:     e.Title,
+					StartTime: e.StartTime,
+					Duration:  e.Duration,
+					AllDay:    e.AllDay,
+				})
+			}
+		}
+	}
 
 	// Gather carry-over tasks from most recent past plan
 	input.CarryOverTasks = r.getCarryOverTasks(ctx, planDate)

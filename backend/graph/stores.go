@@ -2,7 +2,9 @@ package graph
 
 import (
 	"context"
+	"time"
 
+	"dayos/calendar"
 	"dayos/db"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -56,4 +58,13 @@ type DayPlanStore interface {
 	RecentPlans(ctx context.Context, limit int32) ([]db.DayPlan, error)
 	GetPlanMessages(ctx context.Context, planID pgtype.UUID) ([]db.PlanMessage, error)
 	CreatePlanMessage(ctx context.Context, arg db.CreatePlanMessageParams) (db.PlanMessage, error)
+}
+
+// CalendarService abstracts the calendar package for testability in resolvers.
+type CalendarService interface {
+	GetEvents(ctx context.Context, date time.Time) (*calendar.EventsResult, error)
+	ExchangeCodeAndStore(ctx context.Context, code string) error
+	Disconnect(ctx context.Context) error
+	IsConnected(ctx context.Context) (bool, error)
+	GetStatus(ctx context.Context) (*calendar.StatusResult, error)
 }

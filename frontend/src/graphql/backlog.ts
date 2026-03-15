@@ -26,6 +26,9 @@ export const GET_TASKS = gql`
         priority
         estimatedMinutes
         actualMinutes
+        deadlineType
+        deadlineDate
+        deadlineDays
         notes
         isCompleted
         completedAt
@@ -59,6 +62,9 @@ export const CREATE_TASK = gql`
       category
       priority
       estimatedMinutes
+      deadlineType
+      deadlineDate
+      deadlineDays
     }
   }
 `

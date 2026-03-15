@@ -11,6 +11,19 @@ import (
 	"github.com/google/uuid"
 )
 
+type CalendarEvent struct {
+	Title     string `json:"title"`
+	StartTime string `json:"startTime"`
+	Duration  int    `json:"duration"`
+	AllDay    bool   `json:"allDay"`
+}
+
+type CalendarEventsPayload struct {
+	Events    []*CalendarEvent `json:"events"`
+	Version   string           `json:"version"`
+	Connected bool             `json:"connected"`
+}
+
 type ContextEntry struct {
 	ID        uuid.UUID       `json:"id"`
 	Category  ContextCategory `json:"category"`
@@ -54,6 +67,11 @@ type DayPlan struct {
 	UpdatedAt DateTime       `json:"updatedAt"`
 }
 
+type GoogleCalendarStatus struct {
+	Connected    bool    `json:"connected"`
+	CalendarName *string `json:"calendarName,omitempty"`
+}
+
 type Mutation struct {
 }
 
@@ -67,6 +85,7 @@ type PlanBlock struct {
 	RoutineID *uuid.UUID `json:"routineId,omitempty"`
 	Notes     *string    `json:"notes,omitempty"`
 	Skipped   bool       `json:"skipped"`
+	Done      bool       `json:"done"`
 }
 
 type PlanMessage struct {
@@ -132,6 +151,7 @@ type TaskMessage struct {
 
 type UpdateBlockInput struct {
 	Skipped  *bool   `json:"skipped,omitempty"`
+	Done     *bool   `json:"done,omitempty"`
 	Time     *string `json:"time,omitempty"`
 	Duration *int    `json:"duration,omitempty"`
 	Notes    *string `json:"notes,omitempty"`

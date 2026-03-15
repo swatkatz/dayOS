@@ -27,6 +27,16 @@ type DayPlan struct {
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
+type GoogleAuth struct {
+	ID           pgtype.UUID        `json:"id"`
+	AccessToken  string             `json:"access_token"`
+	RefreshToken string             `json:"refresh_token"`
+	TokenExpiry  pgtype.Timestamptz `json:"token_expiry"`
+	CalendarID   string             `json:"calendar_id"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
 type PlanMessage struct {
 	ID        pgtype.UUID        `json:"id"`
 	PlanID    pgtype.UUID        `json:"plan_id"`

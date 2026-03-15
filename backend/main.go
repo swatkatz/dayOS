@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"dayos/auth"
+	"dayos/calendar"
 	"dayos/cors"
 	"dayos/db"
 	"dayos/graph"
@@ -66,6 +67,28 @@ func main() {
 	queries := db.New(pool)
 	aiClient := planner.NewAnthropicClient()
 	plannerSvc := planner.New(aiClient)
+
+	// Initialize calendar service (optional — works without Google env vars)
+	var calendarSvc graph.CalendarService
+	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
+	googleClientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
+	googleRedirectURI := os.Getenv("GOOGLE_REDIRECT_URI")
+	if googleClientID != "" && googleClientSecret != "" {
+		var cache calendar.Cache
+		if memcachedURL := os.Getenv("MEMCACHED_URL"); memcachedURL != "" {
+			cache = calendar.NewMemcachedCache(memcachedURL)
+		} else {
+			cache = &calendar.NullCache{}
+		}
+		calendarSvc = &calendar.Service{
+			Store:     queries,
+			Cache:     cache,
+			API:       calendar.NewGoogleCalendarAPI(),
+			Refresher: calendar.NewGoogleTokenRefresher(googleClientID, googleClientSecret),
+			Exchanger: calendar.NewGoogleOAuthExchanger(googleClientID, googleClientSecret, googleRedirectURI),
+		}
+	}
+
 	cfg := graph.Config{
 		Resolvers: &graph.Resolver{
 			RoutineStore:          queries,
@@ -74,6 +97,7 @@ func main() {
 			DayPlanStore:          queries,
 			TaskConversationStore: queries,
 			Planner:               plannerSvc,
+			Calendar:              calendarSvc,
 		},
 	}
 	cfg.Directives.Validate = graph.ValidateDirective()
