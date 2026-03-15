@@ -6,7 +6,7 @@ Owns: Today page (`/`), plan chat interface, plan preview panel, accepted plan b
 
 Does not own: App shell, routing, Apollo setup, Tailwind config (owned by `frontend-shell`), GraphQL resolvers or backend logic (owned by `day-plans`, `planner`, `carry-over`), task/routine/context management UI (owned by other frontend specs)
 
-Depends on: `frontend-shell` (app shell, routing, Apollo client, dark theme, auth header), `day-plans` (GraphQL queries/mutations: `dayPlan`, `acceptPlan`, `skipBlock`, `updateBlock`), `planner` (`sendPlanMessage` mutation), `carry-over` (`resolveSkippedBlock` mutation, carry-over task data)
+Depends on: `frontend-shell` (app shell, routing, Apollo client, dark theme, auth header), `day-plans` (GraphQL queries/mutations: `dayPlan`, `acceptPlan`, `skipBlock`, `unskipBlock`, `completeBlock`, `updateBlock`), `planner` (`sendPlanMessage` mutation), `carry-over` (`resolveSkippedBlock` mutation, carry-over task data)
 
 Produces: React components and page for the `/` route. No backend writes — all mutations go through existing GraphQL API.
 
@@ -82,12 +82,15 @@ Shown when `dayPlan.status === 'ACCEPTED'` and the chat panel is closed.
 - Duration badge: `"60 min"` — clickable for inline adjustment
 - Category label (small, colored)
 - Notes (if present, muted text below title)
-- Skip button (icon: X or slash) — calls `skipBlock(planId, blockId)`
-- Skipped blocks: greyed out with strikethrough title, skip button replaced with "Skipped" label
+- Done button (checkmark ✓, hover: emerald green) — calls `completeBlock(planId, blockId)`. Done blocks disappear from the list.
+- Skip button (icon: ✕) — calls `skipBlock(planId, blockId)`
+- Skipped blocks: greyed out with strikethrough title, show "Skipped" label + "Undo" button. Clicking "Undo" calls `unskipBlock(planId, blockId)` to restore the block.
+- Active block (currently happening based on time): highlighted with gold ring + glow (`ring-2 ring-accent shadow-[0_0_12px_rgba(197,165,90,0.3)]`)
 - Duration adjustment: clicking the duration badge opens an inline input (number). On blur or Enter, calls `updateBlock(planId, blockId, { duration: newValue })`. Validates > 0 client-side.
 
 **`NowIndicator`**
-- A horizontal line with label "NOW" positioned between blocks based on current time
+- A solid horizontal line (3px, rounded) with label "NOW" positioned between blocks based on current time
+- Prominent gold glow effect (`shadow-[0_0_8px_rgba(197,165,90,0.5)]`) and "NOW" label with drop shadow and letter spacing
 - Updates every 60 seconds via `setInterval`
 - Positioned by comparing current time to block times
 - If current time is before all blocks: show at the top
@@ -137,6 +140,7 @@ query GetTodayPlan($date: Date!) {
       routineId
       notes
       skipped
+      done
     }
     messages {
       id
@@ -164,6 +168,7 @@ query GetRecentPlans($limit: Int) {
       routineId
       notes
       skipped
+      done
     }
   }
 }
@@ -177,7 +182,7 @@ mutation SendPlanMessage($date: Date!, $message: String!) {
     id
     planDate
     status
-    blocks { id time duration title category taskId routineId notes skipped }
+    blocks { id time duration title category taskId routineId notes skipped done }
     messages { id role content createdAt }
   }
 }
@@ -186,21 +191,35 @@ mutation AcceptPlan($date: Date!) {
   acceptPlan(date: $date) {
     id
     status
-    blocks { id time duration title category taskId routineId notes skipped }
+    blocks { id time duration title category taskId routineId notes skipped done }
   }
 }
 
 mutation SkipBlock($planId: UUID!, $blockId: String!) {
   skipBlock(planId: $planId, blockId: $blockId) {
     id
-    blocks { id time duration title category taskId routineId notes skipped }
+    blocks { id time duration title category taskId routineId notes skipped done }
+  }
+}
+
+mutation UnskipBlock($planId: UUID!, $blockId: String!) {
+  unskipBlock(planId: $planId, blockId: $blockId) {
+    id
+    blocks { id time duration title category taskId routineId notes skipped done }
+  }
+}
+
+mutation CompleteBlock($planId: UUID!, $blockId: String!) {
+  completeBlock(planId: $planId, blockId: $blockId) {
+    id
+    blocks { id time duration title category taskId routineId notes skipped done }
   }
 }
 
 mutation UpdateBlock($planId: UUID!, $blockId: String!, $input: UpdateBlockInput!) {
   updateBlock(planId: $planId, blockId: $blockId, input: $input) {
     id
-    blocks { id time duration title category taskId routineId notes skipped }
+    blocks { id time duration title category taskId routineId notes skipped done }
   }
 }
 
@@ -233,9 +252,11 @@ mutation ResolveSkippedBlock($planId: UUID!, $blockId: String!, $intentional: Bo
 - Chat panel: messages area with overflow-y scroll, auto-scroll to bottom on new messages
 - Plan preview / block list: overflow-y scroll, max-height based on viewport
 - Block cards: rounded corners, `4px` left border for category color, padding `1rem`
-- NOW indicator: full-width dashed line, `2px`, accent color, with "NOW" label left-aligned
+- NOW indicator: full-width solid line, `3px`, rounded, accent color with gold glow, "NOW" label with drop shadow and letter spacing
 - Duration badge: small pill, background slightly lighter than card
-- Skip button: small, positioned top-right of block card
+- Done button: checkmark (✓), hover emerald green, positioned top-right of block card
+- Skip button: small (✕), positioned top-right of block card
+- Skipped blocks: "Skipped" label + "Undo" link to unskip
 
 ### Responsive Behavior
 
@@ -271,11 +292,12 @@ mutation ResolveSkippedBlock($planId: UUID!, $blockId: String!, $intentional: Bo
 
 ### Accepted Plan — Block Actions
 
-- When the skip button is clicked on a non-skipped block, the system shall call `skipBlock` and update the block's appearance to show it as skipped (greyed out, strikethrough).
-- When a block is already skipped, the skip button shall not be shown (replaced by "Skipped" label). Skipping is not reversible from the UI.
+- When the done button (✓) is clicked on a non-skipped block, the system shall call `completeBlock` and the block shall disappear from the visible list. A summary line ("N blocks done") appears at the bottom of the list.
+- When the skip button (✕) is clicked on a non-skipped block, the system shall call `skipBlock` and update the block's appearance to show it as skipped (greyed out, strikethrough).
+- When a block is already skipped, the skip/done buttons are replaced by a "Skipped" label and an "Undo" button. Clicking "Undo" calls `unskipBlock` and restores the block to its normal state.
 - When the duration badge is clicked on a non-skipped block, the system shall show an inline number input pre-filled with the current duration.
 - When the user confirms a duration change (Enter or blur), the system shall call `updateBlock` with the new duration. If the value is ≤ 0 or non-numeric, show a validation error and do not submit.
-- When `skipBlock` or `updateBlock` returns an error, the system shall show a toast/inline error and revert the optimistic UI update.
+- When `skipBlock`, `unskipBlock`, `completeBlock`, or `updateBlock` returns an error, the system shall show a toast/inline error and revert the optimistic UI update.
 
 ### NOW Indicator
 
@@ -313,11 +335,13 @@ mutation ResolveSkippedBlock($planId: UUID!, $blockId: String!, $intentional: Bo
 
 ## Decision Table: Block Rendering
 
-| Block skipped? | Time vs now | Rendering |
-|---|---|---|
-| false | future | Normal card, skip button + duration editable |
-| false | past | Normal card, slightly dimmed, skip button still available, duration editable |
-| true | any | Greyed out, strikethrough title, "Skipped" label, no actions |
+| Block done? | Block skipped? | Time vs now | Rendering |
+|---|---|---|---|
+| true | - | any | Hidden from list (counted in "N blocks done" summary) |
+| false | false | current | Normal card with gold ring + glow (active), done + skip buttons, duration editable |
+| false | false | future | Normal card, done + skip buttons, duration editable |
+| false | false | past | Normal card, done + skip buttons still available, duration editable |
+| false | true | any | Greyed out, strikethrough title, "Skipped" label + "Undo" button |
 
 ## File Structure
 
@@ -357,7 +381,7 @@ frontend/src/
 
 7. **Given** an accepted plan with 5 blocks (one at 10:00, current time is 10:30), **when** the accepted plan view renders, **then** the NOW indicator appears between the 10:00 block and the next block, and it is scrolled into view.
 
-8. **Given** an accepted plan with a non-skipped block, **when** the user clicks the skip button on that block, **then** `skipBlock` is called and the block renders as greyed out with strikethrough title.
+8. **Given** an accepted plan with a non-skipped block, **when** the user clicks the skip button on that block, **then** `skipBlock` is called and the block renders as greyed out with strikethrough title and an "Undo" button.
 
 9. **Given** an accepted plan with a block showing `60 min`, **when** the user clicks the duration badge, enters `45`, and presses Enter, **then** `updateBlock` is called with `{ duration: 45 }` and the badge updates to `"45 min"`.
 
@@ -368,3 +392,9 @@ frontend/src/
 12. **Given** `sendPlanMessage` returns an error `"Couldn't parse AI response, please try again"`, **when** the chat panel receives the error, **then** the error is displayed as a distinct message in the chat and the input is re-enabled.
 
 13. **Given** the user clicks the duration badge and enters `0`, **when** they press Enter, **then** a validation error is shown and `updateBlock` is NOT called.
+
+14. **Given** an accepted plan with a non-skipped, non-done block, **when** the user clicks the done button (✓) on that block, **then** `completeBlock` is called and the block disappears from the visible list, with a "1 block done" summary shown at the bottom.
+
+15. **Given** an accepted plan with a skipped block, **when** the user clicks the "Undo" button on that block, **then** `unskipBlock` is called and the block returns to its normal (non-skipped) appearance with done/skip buttons restored.
+
+16. **Given** an accepted plan with 3 blocks where 2 are marked done, **when** the accepted plan view renders, **then** only 1 block card is visible and the summary reads "2 blocks done".

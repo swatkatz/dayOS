@@ -10,7 +10,7 @@ Depends on: `foundation` (tables + migrations), `tasks` (reads tasks for block l
 
 Produces:
 - Queries: `dayPlan(date)`, `recentPlans(limit)`
-- Mutations: `acceptPlan(date)`, `skipBlock(planId, blockId)`, `updateBlock(planId, blockId, input)`
+- Mutations: `acceptPlan(date)`, `skipBlock(planId, blockId)`, `unskipBlock(planId, blockId)`, `completeBlock(planId, blockId)`, `updateBlock(planId, blockId, input)`
 - Note: `sendPlanMessage` is owned by the `planner` spec — this spec owns the plan/message storage that the planner writes to.
 
 ## Contracts
@@ -22,6 +22,7 @@ Produces:
 ```graphql
 input UpdateBlockInput {
   skipped:  Boolean
+  done:     Boolean
   time:     String
   duration: Int
   notes:    String
@@ -57,6 +58,7 @@ type PlanBlock {
   routineId: UUID
   notes:     String
   skipped:   Boolean!
+  done:      Boolean!
 }
 
 type PlanMessage {
@@ -130,7 +132,13 @@ RETURNING *;
 - When `skipBlock(planId, blockId)` is called, the system shall set `skipped: true` on the matching block in the JSONB array and return the updated plan.
 - When `skipBlock` is called on a plan that is not `accepted`, the system shall return an error: "Can only skip blocks on an accepted plan."
 - When `skipBlock` is called with a `blockId` that does not exist in the plan's blocks, the system shall return an error: "Block not found."
-- When `updateBlock(planId, blockId, input)` is called, the system shall update the specified fields on the matching block. Only provided (non-null) fields are updated.
+- When `unskipBlock(planId, blockId)` is called, the system shall set `skipped: false` on the matching block and return the updated plan.
+- When `unskipBlock` is called on a plan that is not `accepted`, the system shall return an error: "Can only unskip blocks on an accepted plan."
+- When `unskipBlock` is called with a `blockId` that does not exist, the system shall return an error: "Block not found."
+- When `completeBlock(planId, blockId)` is called, the system shall set `done: true` on the matching block and return the updated plan.
+- When `completeBlock` is called on a plan that is not `accepted`, the system shall return an error: "Can only complete blocks on an accepted plan."
+- When `completeBlock` is called with a `blockId` that does not exist, the system shall return an error: "Block not found."
+- When `updateBlock(planId, blockId, input)` is called, the system shall update the specified fields on the matching block. Only provided (non-null) fields are updated (including `done`).
 - When `updateBlock` is called on a plan that is not `accepted`, the system shall return an error: "Can only update blocks on an accepted plan."
 - When `updateBlock` is called with a `blockId` that does not exist, the system shall return an error: "Block not found."
 - When `updateBlock` sets `duration` to a value <= 0, the system shall return an error: "Duration must be positive."
@@ -148,14 +156,20 @@ RETURNING *;
 
 ## Decision Table: Block Action Validation
 
-| Plan Status | Block Exists | Action     | Result                                    |
-|-------------|-------------|------------|-------------------------------------------|
-| draft       | -           | skipBlock  | Error: "Can only skip blocks on an accepted plan" |
-| draft       | -           | updateBlock| Error: "Can only update blocks on an accepted plan" |
-| accepted    | no          | skipBlock  | Error: "Block not found"                  |
-| accepted    | no          | updateBlock| Error: "Block not found"                  |
-| accepted    | yes         | skipBlock  | Set `skipped: true`, return updated plan  |
-| accepted    | yes         | updateBlock| Update provided fields, return updated plan |
+| Plan Status | Block Exists | Action        | Result                                    |
+|-------------|-------------|---------------|-------------------------------------------|
+| draft       | -           | skipBlock     | Error: "Can only skip blocks on an accepted plan" |
+| draft       | -           | unskipBlock   | Error: "Can only unskip blocks on an accepted plan" |
+| draft       | -           | completeBlock | Error: "Can only complete blocks on an accepted plan" |
+| draft       | -           | updateBlock   | Error: "Can only update blocks on an accepted plan" |
+| accepted    | no          | skipBlock     | Error: "Block not found"                  |
+| accepted    | no          | unskipBlock   | Error: "Block not found"                  |
+| accepted    | no          | completeBlock | Error: "Block not found"                  |
+| accepted    | no          | updateBlock   | Error: "Block not found"                  |
+| accepted    | yes         | skipBlock     | Set `skipped: true`, return updated plan  |
+| accepted    | yes         | unskipBlock   | Set `skipped: false`, return updated plan |
+| accepted    | yes         | completeBlock | Set `done: true`, return updated plan     |
+| accepted    | yes         | updateBlock   | Update provided fields, return updated plan |
 
 ## Test Anchors
 
@@ -176,3 +190,9 @@ RETURNING *;
 8. Given a plan with 2 messages (user + assistant), when `dayPlan` is queried with the `messages` field, then both messages are returned in chronological order.
 
 9. Given an accepted plan with block `"block-3"`, when `updateBlock(planId, "block-3", { duration: 0 })` is called, then an error "Duration must be positive" is returned.
+
+10. Given an accepted plan with a skipped block `"block-4"`, when `unskipBlock(planId, "block-4")` is called, then the block's `skipped` field is `false` in the returned plan.
+
+11. Given an accepted plan with block `"block-5"`, when `completeBlock(planId, "block-5")` is called, then the block's `done` field is `true` in the returned plan and all other blocks remain unchanged.
+
+12. Given a draft plan, when `completeBlock` is called on it, then an error is returned indicating blocks can only be completed on accepted plans.
