@@ -17,6 +17,7 @@ interface PlanSummary {
     routineId: string | null
     notes: string | null
     skipped: boolean
+    done: boolean
   }>
   createdAt: string
 }

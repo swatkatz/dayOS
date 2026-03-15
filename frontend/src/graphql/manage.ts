@@ -114,6 +114,7 @@ export const GET_RECENT_PLANS_FULL = gql`
         routineId
         notes
         skipped
+        done
       }
       createdAt
     }
