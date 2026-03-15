@@ -25,6 +25,7 @@ const authLink = new SetContextLink(({ headers }) => {
     headers: {
       ...headers,
       ...(token ? { authorization: `Bearer ${token}` } : {}),
+      'X-Timezone': Intl.DateTimeFormat().resolvedOptions().timeZone,
     },
   }
 })

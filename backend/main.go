@@ -14,6 +14,7 @@ import (
 	"dayos/db"
 	"dayos/graph"
 	"dayos/planner"
+	"dayos/tz"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
@@ -112,7 +113,7 @@ func main() {
 	}
 
 	// GraphQL endpoint: CORS wraps auth (preflight OPTIONS has no Authorization header)
-	http.Handle("/graphql", corsMiddleware(authMiddleware(srv)))
+	http.Handle("/graphql", corsMiddleware(authMiddleware(tz.Middleware(srv))))
 
 	log.Printf("DayOS server running on :%s", port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), nil))

@@ -12,6 +12,7 @@ import (
 	"dayos/planner"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 	"time"
 
@@ -239,8 +240,8 @@ func (r *mutationResolver) SendPlanMessage(ctx context.Context, date model.Date,
 		return nil, err
 	}
 
-	// Convert planner blocks to model blocks and marshal
-	modelBlocks := make([]*model.PlanBlock, len(output.Blocks))
+	// Convert planner blocks to model blocks
+	aiBlocks := make([]*model.PlanBlock, len(output.Blocks))
 	for i, b := range output.Blocks {
 		block := &model.PlanBlock{
 			ID:       b.ID,
@@ -261,7 +262,25 @@ func (r *mutationResolver) SendPlanMessage(ctx context.Context, date model.Date,
 				block.RoutineID = &uid
 			}
 		}
-		modelBlocks[i] = block
+		aiBlocks[i] = block
+	}
+
+	// For replanning, merge preserved (done + skipped) blocks with AI's new blocks
+	var modelBlocks []*model.PlanBlock
+	if isReplan {
+		existing := parseBlocks(existingPlan.Blocks)
+		for _, b := range existing {
+			if b.Done || b.Skipped {
+				modelBlocks = append(modelBlocks, b)
+			}
+		}
+		modelBlocks = append(modelBlocks, aiBlocks...)
+		// Sort by time
+		sort.Slice(modelBlocks, func(i, j int) bool {
+			return modelBlocks[i].Time < modelBlocks[j].Time
+		})
+	} else {
+		modelBlocks = aiBlocks
 	}
 
 	blocksData, err := marshalBlocks(modelBlocks)

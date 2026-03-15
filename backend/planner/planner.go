@@ -92,7 +92,8 @@ type PlanChatInput struct {
 	CalendarEvents []CalendarEventInfo
 	History        []Message
 	UserMessage    string
-	CurrentBlocks  string // JSON of current blocks for replanning
+	CurrentBlocks  string // JSON of remaining (not done, not skipped) blocks for replanning
+	CompletedBlocks string // JSON of done blocks for AI context during replanning
 	CurrentTime    string // HH:MM for replanning
 	IsReplan       bool
 }
@@ -365,16 +366,19 @@ Each element: { "id": "uuid-v4", "time": "HH:MM", "duration": 60, "title": "..."
 		b.WriteString(fmt.Sprintf(`
 
 REPLANNING CONTEXT:
-The current plan has been accepted and is in progress. Here are the current blocks:
+These blocks are already COMPLETED — do not include them in your response:
+%s
+
+These are the remaining unfinished blocks to reschedule:
 %s
 
 Current time: %s
 
 REPLANNING RULES:
-- Blocks in the past (before current time) that are NOT skipped must be preserved exactly as-is.
-- Blocks that are skipped can be replaced or removed.
-- Only reschedule blocks from current time onward.
-- The user is asking to adjust the remaining schedule.`, input.CurrentBlocks, input.CurrentTime))
+- Return ONLY new/rescheduled blocks from current time onward.
+- Do NOT include completed or skipped blocks in your response.
+- All blocks must have "time" >= current time.
+- The user is asking to adjust the remaining schedule.`, input.CompletedBlocks, input.CurrentBlocks, input.CurrentTime))
 	}
 
 	return b.String()

@@ -2,11 +2,13 @@ package graph
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"dayos/db"
 	"dayos/planner"
+	"dayos/tz"
 
 	"github.com/google/uuid"
 )
@@ -148,10 +150,37 @@ func (r *mutationResolver) buildPlanChatInput(ctx context.Context, plan db.DayPl
 		})
 	}
 
-	// For replanning, include current blocks and time
+	// For replanning, split blocks into done/skipped/remaining so the AI only replans what's needed
 	if isReplan {
-		input.CurrentBlocks = string(plan.Blocks)
-		input.CurrentTime = time.Now().Format("15:04")
+		input.CurrentTime = time.Now().In(tz.FromContext(ctx)).Format("15:04")
+
+		var allBlocks []json.RawMessage
+		if err := json.Unmarshal(plan.Blocks, &allBlocks); err == nil {
+			type blockFlags struct {
+				Done    bool `json:"done"`
+				Skipped bool `json:"skipped"`
+			}
+			var doneBlocks, remainingBlocks []json.RawMessage
+			for _, raw := range allBlocks {
+				var flags blockFlags
+				json.Unmarshal(raw, &flags)
+				switch {
+				case flags.Done:
+					doneBlocks = append(doneBlocks, raw)
+				case flags.Skipped:
+					// skipped blocks are preserved but not sent to AI
+				default:
+					remainingBlocks = append(remainingBlocks, raw)
+				}
+			}
+			completed, _ := json.Marshal(doneBlocks)
+			remaining, _ := json.Marshal(remainingBlocks)
+			input.CompletedBlocks = string(completed)
+			input.CurrentBlocks = string(remaining)
+		} else {
+			input.CurrentBlocks = string(plan.Blocks)
+			input.CompletedBlocks = "[]"
+		}
 	}
 
 	return input, nil

@@ -11,7 +11,7 @@ func AllowFrontend(frontendURL string) func(http.Handler) http.Handler {
 			if origin == frontendURL {
 				w.Header().Set("Access-Control-Allow-Origin", frontendURL)
 				w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Timezone")
 				w.Header().Set("Access-Control-Max-Age", "86400")
 			}
 
