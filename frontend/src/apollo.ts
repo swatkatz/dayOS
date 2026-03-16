@@ -18,11 +18,11 @@ export function setOnUnauth(cb: () => void) {
 
 const httpLink = new HttpLink({ uri: import.meta.env.VITE_GRAPHQL_URL || '/graphql' })
 
-const authLink = new SetContextLink(async (_, { headers }) => {
+const authLink = new SetContextLink(async (prevContext) => {
   const token = tokenGetter ? await tokenGetter() : null
   return {
     headers: {
-      ...headers,
+      ...prevContext.headers,
       ...(token ? { authorization: `Bearer ${token}` } : {}),
       'X-Timezone': Intl.DateTimeFormat().resolvedOptions().timeZone,
     },
