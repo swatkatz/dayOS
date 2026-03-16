@@ -2,8 +2,8 @@
 
 ## What this is
 
-Personal daily planning app. Single user (Swati). Go + GraphQL + PostgreSQL backend,
-React + TypeScript frontend, deployed on Railway.
+Multi-user daily planning app. Go + GraphQL + PostgreSQL backend,
+React + TypeScript frontend, deployed on Railway. Auth via Clerk (invite-only).
 
 ## Key commands
 
@@ -20,13 +20,44 @@ React + TypeScript frontend, deployed on Railway.
 - Frontend uses Apollo Client with codegen types
 - Never hardcode the Anthropic model — use ANTHROPIC_MODEL env var (default: claude-sonnet-4-6)
 
+## Multi-user architecture
+
+### Auth flow
+- Clerk JWT verified in HTTP middleware (`backend/auth/clerk.go`)
+- Middleware extracts user ID → stores in `context.Context` via `backend/identity/identity.go`
+- Every request is authenticated — no public queries or mutations
+- Invite-only sign-up enforced by Clerk dashboard config
+
+### User-scoped data
+- `backend/db/scoped.go` — `ScopedQueries` wraps `*db.Queries`, reads user ID from context,
+  injects `user_id` into every sqlc call. Satisfies all store interfaces.
+- Store interfaces in `graph/stores.go` are **unchanged** — resolvers have no concept of users
+- All sqlc queries include `AND user_id = @user_id` (or `user_id` in INSERT)
+- `plan_messages` and `task_messages` are scoped transitively via parent FK — no `user_id` column
+
+### Identity package (`backend/identity/`)
+- Defines `User` struct and context key (same pattern as `backend/tz/`)
+- `identity.FromContext(ctx)` returns the authenticated user
+- Used by `ScopedQueries`, planner decorator, and calendar service
+
+### Planner decorator
+- `WithUserCap` wraps `PlannerService` (decorator pattern, same interface)
+- Checks daily AI call cap before forwarding to inner planner
+- Resolves API key: user's `anthropic_api_key` if set, else system `ANTHROPIC_API_KEY`
+- Wired in `main.go` — resolvers don't know about caps or key fallback
+
+### New user onboarding
+- On first Clerk login, middleware upserts user row and seeds default context entries
+- Default context entries are examples that encourage customization
+
 ## Store + Resolver pattern
 
 Database details must not leak into the resolver layer. Resolvers never import `dayos/db`
 or `github.com/jackc/pgx`. The layers:
 
 1. **Store interface** (`graph/stores.go`) — per-context interface (e.g. `RoutineStore`) wrapping
-   the sqlc methods the resolver needs. `*db.Queries` satisfies it in production.
+   the sqlc methods the resolver needs. `*db.ScopedQueries` satisfies it in production
+   (wraps `*db.Queries` with automatic user scoping from context).
 2. **Converter** (`graph/{context}_convert.go`) — concrete struct per context (e.g. `routineConv`)
    with consistent methods:
    - `FromDB(dbModel) *gqlModel` — db → GraphQL model
@@ -132,6 +163,10 @@ Use `/write-spec <context-name>` to generate a spec.
 **Wave 6 — Integrations**
 
 15. `specs/calendar.md` — Google Calendar integration, OAuth, memcached caching, planner prompt injection, frontend polling + replan detection
+
+**Wave 7 — Multi-user**
+
+16. `specs/multiuser.md` — Clerk auth, user-scoped data, identity package, ScopedQueries, planner decorator, new user onboarding, frontend Clerk integration
 
 ### Spec workflow
 

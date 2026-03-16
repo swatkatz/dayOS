@@ -5,14 +5,15 @@
 
 ## Overview
 
-A personal daily planning web app for Swati. It uses the Anthropic API to generate
+A daily planning web app. It uses the Anthropic API to generate
 intelligent, time-blocked day plans from a persistent task backlog, routines, and
-user context. Plans are created and refined through a **chat interface** — Swati
-describes her day, Claude generates a plan, and they go back and forth until the plan
+user context. Plans are created and refined through a **chat interface** — the user
+describes their day, Claude generates a plan, and they go back and forth until the plan
 feels right. Tasks are also scoped through AI-assisted chat: describe a goal, Claude
 asks clarifying questions, then proposes subtasks with time estimates.
 
-Hosted on Railway with PostgreSQL. Single-user, no auth system needed (env-var protected).
+Hosted on Railway with PostgreSQL. Multi-user with Clerk authentication (invite-only).
+Shared with friends and family.
 
 ---
 
@@ -172,7 +173,7 @@ CREATE TABLE routines (
 
 ### `context_entries`
 
-Persistent facts about Swati's life that should always inform plan generation.
+Persistent facts about the user's life that should always inform plan generation.
 Think of these as "things the planner always knows." Categorized and editable.
 
 ```sql
@@ -589,14 +590,14 @@ This is the unified entry point for all plan interactions. It handles:
 6. Load existing chat history (`plan_messages` for this plan)
 
 ```
-You are a daily planning assistant for Swati. Your job is to create a realistic,
-time-blocked day plan based on her context, routines, and task backlog.
+You are a daily planning assistant for {user_name}. Your job is to create a realistic,
+time-blocked day plan based on their context, routines, and task backlog.
 
-CONTEXT (treat these as ground truth — they define Swati's constraints, life
+CONTEXT (treat these as ground truth — they define {user_name}'s constraints, life
 situation, and preferences. Plan around them.):
 {context_entries formatted as: "- {key}: {value}"}
 
-TODAY'S ROUTINES (non-negotiable unless Swati says otherwise):
+TODAY'S ROUTINES (non-negotiable unless {user_name} says otherwise):
 {applicable routines formatted as: "- {title} [{category}] — {preferred_duration_min} min, preferred: {preferred_time_of_day}"}
 
 TASK BACKLOG (ordered by priority/urgency):
@@ -651,7 +652,7 @@ blocks with their skip/duration status, and instruct Claude to preserve the past
 **System prompt:**
 
 ```
-You are helping Swati break down a goal into concrete, schedulable tasks.
+You are helping {user_name} break down a goal into concrete, schedulable tasks.
 
 Your job:
 1. Ask clarifying questions to understand the scope (what needs to be done, what's
@@ -679,7 +680,7 @@ When asking questions, respond with:
 { "status": "question", "message": "..." }
 
 Keep it conversational. Don't ask more than 2-3 questions before proposing.
-Adjust if Swati gives feedback on the proposal.
+Adjust if {user_name} gives feedback on the proposal.
 ```
 
 ### Error handling
@@ -872,18 +873,42 @@ var frontend embed.FS
 ### Environment variables
 
 ```
-DATABASE_URL=          # Railway provides automatically
-ANTHROPIC_API_KEY=     # Set in Railway dashboard
-ANTHROPIC_MODEL=       # Default: claude-sonnet-4-6
-APP_SECRET=            # Simple shared secret for the "login" page (single user)
+DATABASE_URL=              # Railway provides automatically
+ANTHROPIC_API_KEY=         # System default key (used when user has no personal key)
+ANTHROPIC_MODEL=           # Default: claude-sonnet-4-6
+CLERK_SECRET_KEY=          # Clerk backend secret (sk_live_...)
+VITE_CLERK_PUBLISHABLE_KEY= # Clerk frontend key (pk_live_...)
+DAILY_AI_CAP=              # Max AI calls per user per day (default: 50)
+OWNER_CLERK_ID=            # Clerk user ID of the owner (for data migration)
 PORT=8080
 ```
 
-### Simple auth
+### Authentication (Clerk)
 
-Since this is single-user, protect the app with a simple password check on load.
-Store `APP_SECRET` in env. Frontend sends it as a header; backend validates on every
-GraphQL request. No JWT, no sessions — just a shared secret.
+Multi-user auth via Clerk (SaaS). Invite-only sign-up configured in the Clerk dashboard.
+Supports email/password + Google + Apple sign-in.
+
+- Frontend: `@clerk/clerk-react` provides `<ClerkProvider>`, `<SignIn />`, `useAuth()`
+- Backend: Clerk JWT verified in HTTP middleware via `github.com/clerk/clerk-sdk-go/v2`
+- User identity stored in `context.Context` via `backend/identity/` package
+- `ScopedQueries` wrapper (`backend/db/scoped.go`) reads user ID from context and injects
+  `user_id` into every sqlc query — store interfaces and resolvers are unchanged
+- Zero credentials stored on Railway — all auth data lives on Clerk's servers
+
+### Multi-user data model
+
+- `users` table maps Clerk IDs to internal UUIDs
+- Every data table has a `user_id UUID NOT NULL REFERENCES users(id)` column
+- All sqlc queries include `WHERE user_id = @user_id` for data isolation
+- `plan_messages` and `task_messages` are scoped transitively via their parent FK
+- Per-user Google Calendar OAuth (no more singleton `google_auth` constraint)
+
+### Per-user AI and usage caps
+
+- `users.anthropic_api_key` (nullable) — if set, planner uses user's key; otherwise falls back
+  to system `ANTHROPIC_API_KEY`
+- Daily AI call cap tracked on the `users` table — resets each day
+- `WithUserCap` decorator wraps `PlannerService` to enforce cap + key fallback transparently
 
 ---
 

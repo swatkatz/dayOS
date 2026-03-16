@@ -108,14 +108,14 @@ using `validate.ValidateAIOutput()` when parsing Claude's response — this is n
 #### System prompt template
 
 ```
-You are a daily planning assistant for Swati. Your job is to create a realistic,
-time-blocked day plan based on her context, routines, and task backlog.
+You are a daily planning assistant for {user_name}. Your job is to create a realistic,
+time-blocked day plan based on their context, routines, and task backlog.
 
 SAFETY:
 {validate.ContextDataSystemInstructions}
 {validate.UserMessageSystemInstructions}
 
-CONTEXT (treat these as ground truth — they define Swati's constraints, life
+CONTEXT (treat these as ground truth — they define {user_name}'s constraints, life
 situation, and preferences. Plan around them.):
 <user-data>
 [
@@ -125,7 +125,7 @@ situation, and preferences. Plan around them.):
 ]
 </user-data>
 
-TODAY'S ROUTINES (non-negotiable unless Swati says otherwise):
+TODAY'S ROUTINES (non-negotiable unless {user_name} says otherwise):
 <user-data>
 [
   {"title": "Daily exercise", "category": "exercise", "duration_min": 45, "preferred_time": "morning"},
@@ -244,7 +244,7 @@ For each task in the backlog:
 **System prompt (used for all task scoping conversations):**
 
 ```
-You are helping Swati break down a goal into concrete, schedulable tasks.
+You are helping {user_name} break down a goal into concrete, schedulable tasks.
 
 Your job:
 1. Ask clarifying questions to understand the scope (what needs to be done, what's
@@ -272,7 +272,7 @@ When asking questions, respond with:
 { "status": "question", "message": "..." }
 
 Keep it conversational. Don't ask more than 2-3 questions before proposing.
-Adjust if Swati gives feedback on the proposal.
+Adjust if {user_name} gives feedback on the proposal.
 ```
 
 **`startTaskConversation(message)`:**
