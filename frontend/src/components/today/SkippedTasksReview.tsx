@@ -34,42 +34,45 @@ export default function SkippedTasksReview({ planId, blocks, onDone }: Props) {
   const allResolved = blocks.every((b) => resolved.has(b.id))
 
   return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="bg-bg-surface rounded-lg p-6 max-w-lg w-full">
-        <h2 className="text-xl font-semibold text-text-primary mb-4">
-          Yesterday you skipped {blocks.length} block{blocks.length !== 1 ? 's' : ''}:
+    <div className="flex items-center justify-center min-h-[60vh] px-3">
+      <div className="bg-bg-surface rounded-2xl p-5 md:p-6 max-w-lg w-full shadow-[0_4px_24px_rgba(0,0,0,0.4)]">
+        <h2 className="text-lg md:text-xl font-semibold text-text-primary mb-1">
+          Yesterday's skipped blocks
         </h2>
+        <p className="text-text-secondary text-sm mb-5">
+          Were these skips intentional? This helps improve future plans.
+        </p>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           {blocks.map((block) => {
             const isResolved = resolved.has(block.id)
             return (
               <div
                 key={block.id}
-                className={`p-4 rounded-lg border border-border-default ${isResolved ? 'opacity-50' : ''}`}
+                className={`p-3 md:p-4 rounded-xl border border-border-default transition-opacity ${isResolved ? 'opacity-40' : ''}`}
               >
                 <div className="flex items-center gap-2 mb-3">
                   <span
                     className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                     style={{ backgroundColor: CATEGORY_COLORS[block.category] || '#6b7280' }}
                   />
-                  <span className="text-text-primary font-medium">{block.title}</span>
+                  <span className="text-text-primary font-medium text-[15px]">{block.title}</span>
                 </div>
 
                 {isResolved ? (
                   <span className="text-text-secondary text-sm">Resolved</span>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <span className="text-text-secondary text-sm mr-2">Intentional?</span>
+                    <span className="text-text-secondary text-sm mr-1">Intentional?</span>
                     <button
                       onClick={() => handleResolve(block.id, true)}
-                      className="px-3 py-1 text-sm rounded bg-bg-surface-hover text-text-primary hover:bg-accent hover:text-black transition-colors"
+                      className="px-4 py-1.5 text-sm rounded-lg bg-bg-surface-hover text-text-primary hover:bg-accent hover:text-black active:scale-95 transition-all"
                     >
                       Yes
                     </button>
                     <button
                       onClick={() => handleResolve(block.id, false)}
-                      className="px-3 py-1 text-sm rounded bg-bg-surface-hover text-text-primary hover:bg-accent hover:text-black transition-colors"
+                      className="px-4 py-1.5 text-sm rounded-lg bg-bg-surface-hover text-text-primary hover:bg-accent hover:text-black active:scale-95 transition-all"
                     >
                       No
                     </button>
@@ -83,7 +86,7 @@ export default function SkippedTasksReview({ planId, blocks, onDone }: Props) {
         <button
           onClick={onDone}
           disabled={!allResolved}
-          className="mt-6 w-full py-2 px-4 rounded font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-accent text-black hover:bg-accent-hover"
+          className="mt-6 w-full py-2.5 px-4 rounded-xl font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-accent text-black hover:bg-accent-hover active:scale-[0.99]"
         >
           Done — Start Planning
         </button>

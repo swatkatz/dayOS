@@ -151,14 +151,14 @@ export default function ContextPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-semibold text-text-primary mb-6">Context</h1>
+      <h1 className="text-xl md:text-2xl font-semibold text-text-primary mb-6">Context</h1>
 
       {/* Google Calendar Integration */}
       <div className="mb-8">
         <h2 className="text-sm font-medium text-text-secondary uppercase tracking-wide border-b border-border-default pb-2 mb-3">
           Google Calendar
         </h2>
-        <div className="bg-bg-surface rounded-lg p-4 border border-border-default">
+        <div className="bg-bg-surface rounded-xl p-4 border border-border-default">
           {calendarStatus?.connected ? (
             <div>
               <div className="flex items-center justify-between">
@@ -204,7 +204,7 @@ export default function ContextPage() {
               {catEntries.map((entry) => (
                 <div
                   key={entry.id}
-                  className={`bg-bg-surface rounded-lg p-3 border border-border-default group ${!entry.isActive ? 'opacity-50' : ''}`}
+                  className={`bg-bg-surface rounded-xl p-3 border border-border-default group transition-opacity ${!entry.isActive ? 'opacity-40' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">

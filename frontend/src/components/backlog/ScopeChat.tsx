@@ -203,7 +203,7 @@ export default function ScopeChat({ onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-y-0 right-0 w-full md:w-[28rem] bg-bg-primary border-l border-border-default z-50 flex flex-col shadow-2xl">
+    <div className="fixed inset-0 md:inset-y-0 md:left-auto md:right-0 w-full md:w-[28rem] bg-bg-primary border-l border-border-default z-50 flex flex-col shadow-2xl">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border-default">
         <h3 className="font-medium text-text-primary">Scope with AI</h3>
@@ -219,8 +219,8 @@ export default function ScopeChat({ onClose }: Props) {
         )}
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] rounded-lg px-4 py-2 text-sm ${
-              msg.role === 'user' ? 'bg-accent text-black' : 'bg-bg-surface text-text-primary'
+            <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+              msg.role === 'user' ? 'bg-accent text-black rounded-br-md' : 'bg-bg-surface text-text-primary rounded-bl-md'
             }`}>
               {renderMessage(msg)}
             </div>
@@ -228,8 +228,12 @@ export default function ScopeChat({ onClose }: Props) {
         ))}
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-bg-surface rounded-lg px-4 py-2 text-sm text-text-secondary animate-pulse">
-              Thinking...
+            <div className="bg-bg-surface rounded-2xl rounded-bl-md px-4 py-3 text-sm text-text-secondary">
+              <span className="inline-flex gap-1">
+                <span className="w-1.5 h-1.5 bg-text-secondary rounded-full animate-bounce [animation-delay:0ms]" />
+                <span className="w-1.5 h-1.5 bg-text-secondary rounded-full animate-bounce [animation-delay:150ms]" />
+                <span className="w-1.5 h-1.5 bg-text-secondary rounded-full animate-bounce [animation-delay:300ms]" />
+              </span>
             </div>
           </div>
         )}
@@ -245,13 +249,13 @@ export default function ScopeChat({ onClose }: Props) {
           <button
             onClick={handleConfirm}
             disabled={confirming}
-            className="flex-1 py-2 bg-accent text-black rounded font-medium hover:bg-accent-hover disabled:opacity-40 transition-colors"
+            className="flex-1 py-2.5 bg-accent text-black rounded-xl font-medium hover:bg-accent-hover active:scale-[0.98] disabled:opacity-40 transition-all"
           >
             {confirming ? 'Creating...' : 'Create Tasks'}
           </button>
           <button
             onClick={handleAdjust}
-            className="px-4 py-2 text-text-secondary hover:text-text-primary border border-border-default rounded transition-colors"
+            className="px-4 py-2.5 text-text-secondary hover:text-text-primary border border-border-default rounded-xl transition-colors"
           >
             Adjust...
           </button>
@@ -272,12 +276,12 @@ export default function ScopeChat({ onClose }: Props) {
             disabled={loading}
             rows={1}
             placeholder="Describe a goal..."
-            className="flex-1 bg-bg-surface border border-border-default rounded px-3 py-2 text-text-primary placeholder:text-text-secondary focus:border-accent focus:ring-1 focus:ring-accent outline-none disabled:opacity-50 resize-none overflow-hidden"
+            className="flex-1 bg-bg-surface border border-border-default rounded-xl px-4 py-2.5 text-[15px] text-text-primary placeholder:text-text-secondary focus:border-accent focus:ring-1 focus:ring-accent outline-none disabled:opacity-50 resize-none overflow-hidden"
           />
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className="px-4 py-2 bg-accent text-black rounded font-medium hover:bg-accent-hover disabled:opacity-40 transition-colors"
+            className="px-4 py-2.5 bg-accent text-black rounded-xl font-medium hover:bg-accent-hover active:scale-95 disabled:opacity-40 transition-all"
           >
             Send
           </button>

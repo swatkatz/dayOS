@@ -108,7 +108,7 @@ export default function BlockList({ blocks, onSkip, onUnskip, onComplete, onUpda
   const visibleBlocks = sorted.filter((b) => !b.done)
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       {sorted.map((block, i) => {
         // Show NOW indicator at correct position even for done blocks
         const nowHere = showNow && nowPosition === i

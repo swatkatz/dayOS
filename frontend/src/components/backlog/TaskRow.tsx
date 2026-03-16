@@ -117,7 +117,7 @@ export default function TaskRow({ task, isSubtask, readOnly }: Props) {
     <div className={`mb-2 ${isSubtask ? 'ml-6' : ''}`}>
       {/* Main row */}
       <div
-        className={`flex items-center gap-3 p-3 rounded-lg bg-bg-surface group ${isSubtask ? 'text-sm' : ''}`}
+        className={`flex items-center gap-2 md:gap-3 p-3 rounded-xl bg-bg-surface group ${isSubtask ? 'text-sm' : ''}`}
         style={{ borderLeft: `4px solid ${color}` }}
       >
         {/* Checkbox */}
@@ -273,7 +273,7 @@ export default function TaskRow({ task, isSubtask, readOnly }: Props) {
 
       {/* Expanded edit panel */}
       {expanded && (
-        <div className="bg-bg-surface rounded-b-lg px-4 py-3 border-t border-border-default space-y-3 text-sm" style={{ borderLeft: `4px solid ${color}` }}>
+        <div className="bg-bg-surface rounded-b-xl px-3 md:px-4 py-3 border-t border-border-default space-y-3 text-sm" style={{ borderLeft: `4px solid ${color}` }}>
           <div className="flex gap-4 flex-wrap">
             {/* Category */}
             <label className="flex flex-col gap-1">

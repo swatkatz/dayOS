@@ -307,10 +307,16 @@ export default function TodayPage() {
     }
   }
 
+  // Mobile tab state for draft/replan view
+  const [mobileTab, setMobileTab] = useState<'chat' | 'plan'>('chat')
+
   if (planLoading) {
     return (
-      <div className="flex items-center justify-center h-64 text-text-secondary">
-        Loading...
+      <div className="flex flex-col gap-3 max-w-2xl mx-auto pt-4">
+        <div className="skeleton h-6 w-40" />
+        <div className="skeleton h-20 w-full" />
+        <div className="skeleton h-20 w-full" />
+        <div className="skeleton h-20 w-full" />
       </div>
     )
   }
@@ -384,7 +390,35 @@ export default function TodayPage() {
 
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-4rem)] gap-0">
-      <div className="md:w-1/2 h-1/2 md:h-full border-r border-border-default">
+      {/* Mobile tab switcher */}
+      <div className="flex md:hidden border-b border-border-default">
+        <button
+          onClick={() => setMobileTab('chat')}
+          className={`flex-1 py-3 text-sm font-medium transition-colors ${
+            mobileTab === 'chat'
+              ? 'text-accent border-b-2 border-accent'
+              : 'text-text-secondary'
+          }`}
+        >
+          Chat
+        </button>
+        <button
+          onClick={() => setMobileTab('plan')}
+          className={`flex-1 py-3 text-sm font-medium transition-colors relative ${
+            mobileTab === 'plan'
+              ? 'text-accent border-b-2 border-accent'
+              : 'text-text-secondary'
+          }`}
+        >
+          Plan
+          {blocks.length > 0 && mobileTab !== 'plan' && (
+            <span className="absolute top-2 right-[calc(50%-24px)] w-2 h-2 rounded-full bg-accent" />
+          )}
+        </button>
+      </div>
+
+      {/* Desktop: side-by-side. Mobile: tab content */}
+      <div className={`md:w-1/2 md:h-full border-r border-border-default ${mobileTab === 'chat' ? 'flex-1' : 'hidden'} md:block`}>
         <ChatPanel
           messages={displayMessages}
           onSend={handleSendMessage}
@@ -393,7 +427,7 @@ export default function TodayPage() {
           isFirstMessage={isFirstMessage}
         />
       </div>
-      <div className="md:w-1/2 h-1/2 md:h-full">
+      <div className={`md:w-1/2 md:h-full ${mobileTab === 'plan' ? 'flex-1' : 'hidden'} md:block`}>
         <PlanPreview blocks={blocks} onAccept={handleAccept} accepting={accepting} />
       </div>
     </div>

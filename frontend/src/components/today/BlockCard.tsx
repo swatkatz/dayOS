@@ -82,18 +82,18 @@ export default function BlockCard({ block, onSkip, onUnskip, onComplete, onUpdat
 
   return (
     <div
-      className={`rounded-lg bg-bg-surface ${block.skipped ? 'opacity-50' : ''} ${
+      className={`rounded-xl bg-bg-surface transition-all ${block.skipped ? 'opacity-40' : ''} ${
         active
-          ? 'ring-2 ring-accent shadow-[0_0_12px_rgba(197,165,90,0.3)]'
-          : ''
+          ? 'ring-2 ring-accent shadow-[0_0_20px_rgba(197,165,90,0.15)]'
+          : 'hover:shadow-[0_2px_12px_rgba(0,0,0,0.3)]'
       }`}
-      style={{ borderLeft: `4px solid ${color}` }}
+      style={{ borderLeft: `3px solid ${color}` }}
     >
-      <div className="relative p-4">
-        <div className="flex items-start justify-between gap-3">
+      <div className="relative p-3 md:p-4">
+        <div className="flex items-start justify-between gap-2 md:gap-3">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 mb-1">
-              <span className="text-text-secondary text-sm font-mono">
+            <div className="flex items-center gap-2 md:gap-3 mb-1 flex-wrap">
+              <span className="text-text-secondary text-xs md:text-sm font-mono whitespace-nowrap">
                 {formatTime12h(block.time)} – {endTime(block.time, block.duration)}
               </span>
 
@@ -116,36 +116,37 @@ export default function BlockCard({ block, onSkip, onUnskip, onComplete, onUpdat
               ) : (
                 <button
                   onClick={handleDurationClick}
-                  className={`text-xs px-2 py-0.5 rounded bg-bg-surface-hover text-text-secondary ${
+                  className={`text-xs px-2 py-0.5 rounded-full bg-bg-surface-hover text-text-secondary ${
                     !block.skipped && !readOnly ? 'hover:text-text-primary cursor-pointer' : 'cursor-default'
                   }`}
                 >
-                  {block.duration} min
+                  {block.duration}m
                 </button>
               )}
             </div>
 
-            <p className={`font-medium text-text-primary ${block.skipped ? 'line-through text-text-secondary' : ''}`}>
+            <p className={`font-medium text-[15px] text-text-primary leading-snug ${block.skipped ? 'line-through text-text-secondary' : ''}`}>
               {block.title}
             </p>
 
-            <span className="text-xs mt-1 inline-block" style={{ color }}>
+            <span className="text-xs mt-1.5 inline-block font-medium opacity-80" style={{ color }}>
               {block.category.toLowerCase()}
             </span>
 
             {block.notes && !block.skipped && (
-              <p className="text-text-secondary text-sm mt-1">{block.notes}</p>
+              <p className="text-text-secondary text-sm mt-1.5 leading-relaxed">{block.notes}</p>
             )}
           </div>
 
-          <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Action buttons — larger touch targets on mobile */}
+          <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
             {block.skipped ? (
               <>
                 <span className="text-text-secondary text-xs">Skipped</span>
                 {!readOnly && onUnskip && (
                   <button
                     onClick={() => onUnskip(block.id)}
-                    className="text-text-secondary hover:text-accent text-xs transition-colors"
+                    className="text-text-secondary hover:text-accent text-xs p-2 -m-1 transition-colors"
                     title="Undo skip"
                   >
                     Undo
@@ -157,7 +158,7 @@ export default function BlockCard({ block, onSkip, onUnskip, onComplete, onUpdat
                 {!readOnly && onComplete && (
                   <button
                     onClick={() => onComplete(block.id)}
-                    className="text-text-secondary hover:text-emerald-400 text-lg transition-colors"
+                    className="text-text-secondary hover:text-emerald-400 active:text-emerald-400 active:scale-125 text-lg p-2 -m-1 transition-all"
                     title="Mark as done"
                   >
                     &#x2713;
@@ -166,7 +167,7 @@ export default function BlockCard({ block, onSkip, onUnskip, onComplete, onUpdat
                 {editable && (
                   <button
                     onClick={() => setExpanded(!expanded)}
-                    className="text-text-secondary hover:text-text-primary text-sm transition-colors"
+                    className="text-text-secondary hover:text-text-primary active:text-text-primary text-sm p-2 -m-1 transition-colors"
                     title="Edit block"
                   >
                     {expanded ? '▲' : '✎'}
@@ -175,7 +176,7 @@ export default function BlockCard({ block, onSkip, onUnskip, onComplete, onUpdat
                 {!readOnly && onSkip && (
                   <button
                     onClick={() => onSkip(block.id)}
-                    className="text-text-secondary hover:text-red-400 text-sm transition-colors"
+                    className="text-text-secondary hover:text-red-400 active:text-red-400 text-sm p-2 -m-1 transition-colors"
                     title="Skip block"
                   >
                     ✕
@@ -184,7 +185,7 @@ export default function BlockCard({ block, onSkip, onUnskip, onComplete, onUpdat
                 {onDelete && (
                   <button
                     onClick={() => onDelete(block.id)}
-                    className="text-text-secondary hover:text-red-400 text-sm transition-colors"
+                    className="text-text-secondary hover:text-red-400 active:text-red-400 text-sm p-2 -m-1 transition-colors"
                     title="Remove block"
                   >
                     🗑
@@ -198,9 +199,9 @@ export default function BlockCard({ block, onSkip, onUnskip, onComplete, onUpdat
 
       {/* Expanded edit panel */}
       {expanded && editable && (
-        <div className="px-4 pb-4 pt-0 border-t border-border-default space-y-3 text-sm">
-          <div className="flex gap-4 flex-wrap pt-3">
-            <label className="flex flex-col gap-1">
+        <div className="px-3 md:px-4 pb-3 md:pb-4 pt-0 border-t border-border-subtle space-y-3 text-sm">
+          <div className="flex gap-3 md:gap-4 flex-wrap pt-3">
+            <label className="flex flex-col gap-1 flex-1 min-w-[200px]">
               <span className="text-text-secondary text-xs">Title</span>
               <input
                 defaultValue={block.title}
@@ -209,7 +210,7 @@ export default function BlockCard({ block, onSkip, onUnskip, onComplete, onUpdat
                   if (val && val !== block.title) onUpdateBlock(block.id, { title: val })
                 }}
                 onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
-                className="bg-bg-primary border border-border-default rounded px-2 py-1 text-text-primary w-64"
+                className="bg-bg-primary border border-border-default rounded-lg px-3 py-2 text-text-primary"
               />
             </label>
 
@@ -221,7 +222,7 @@ export default function BlockCard({ block, onSkip, onUnskip, onComplete, onUpdat
                 onBlur={(e) => {
                   if (e.target.value && e.target.value !== block.time) onUpdateBlock(block.id, { time: e.target.value })
                 }}
-                className="bg-bg-primary border border-border-default rounded px-2 py-1 text-text-primary"
+                className="bg-bg-primary border border-border-default rounded-lg px-3 py-2 text-text-primary"
               />
             </label>
 
@@ -230,7 +231,7 @@ export default function BlockCard({ block, onSkip, onUnskip, onComplete, onUpdat
               <select
                 value={block.category.toUpperCase()}
                 onChange={(e) => onUpdateBlock(block.id, { category: e.target.value })}
-                className="bg-bg-primary border border-border-default rounded px-2 py-1 text-text-primary"
+                className="bg-bg-primary border border-border-default rounded-lg px-3 py-2 text-text-primary"
               >
                 {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
@@ -246,7 +247,7 @@ export default function BlockCard({ block, onSkip, onUnskip, onComplete, onUpdat
                 if (val !== (block.notes ?? '')) onUpdateBlock(block.id, { notes: val || null })
               }}
               rows={2}
-              className="bg-bg-primary border border-border-default rounded px-2 py-1 text-text-primary resize-y"
+              className="bg-bg-primary border border-border-default rounded-lg px-3 py-2 text-text-primary resize-y"
               placeholder="Add notes..."
             />
           </label>

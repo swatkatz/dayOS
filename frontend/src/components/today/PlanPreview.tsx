@@ -44,8 +44,9 @@ export default function PlanPreview({ blocks: sourceBlocks, onAccept, accepting 
 
   if (localBlocks.length === 0 && sourceBlocks.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-text-secondary">
-        Send a message to generate your plan
+      <div className="flex flex-col items-center justify-center h-full text-center px-4">
+        <div className="text-3xl mb-3">📋</div>
+        <p className="text-text-secondary text-sm">Your plan will appear here</p>
       </div>
     )
   }
@@ -60,11 +61,11 @@ export default function PlanPreview({ blocks: sourceBlocks, onAccept, accepting 
           onReorder={handleReorder}
         />
       </div>
-      <div className="p-4 border-t border-border-default">
+      <div className="p-3 md:p-4 border-t border-border-default">
         <button
           onClick={() => onAccept(localBlocks)}
           disabled={localBlocks.length === 0 || accepting}
-          className="w-full py-2 px-4 bg-accent text-black rounded font-medium hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="w-full py-2.5 px-4 bg-accent text-black rounded-xl font-semibold hover:bg-accent-hover active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
         >
           {accepting ? 'Accepting...' : 'Accept Plan'}
         </button>

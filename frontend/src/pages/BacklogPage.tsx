@@ -106,18 +106,18 @@ export default function BacklogPage() {
   return (
     <div className="max-w-3xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-text-primary">Task Backlog</h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <h1 className="text-xl md:text-2xl font-semibold text-text-primary">Task Backlog</h1>
         <div className="flex gap-2">
           <button
             onClick={() => setShowQuickAdd(true)}
-            className="px-4 py-2 bg-accent text-black rounded font-medium hover:bg-accent-hover transition-colors"
+            className="flex-1 sm:flex-none px-4 py-2.5 bg-accent text-black rounded-xl font-medium hover:bg-accent-hover active:scale-[0.98] transition-all"
           >
             + Quick Add
           </button>
           <button
             onClick={() => setShowScopeChat(true)}
-            className="px-4 py-2 border border-border-default text-text-primary rounded hover:border-accent transition-colors"
+            className="flex-1 sm:flex-none px-4 py-2.5 border border-border-default text-text-primary rounded-xl hover:border-accent active:scale-[0.98] transition-all"
           >
             Scope with AI
           </button>

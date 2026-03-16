@@ -162,10 +162,10 @@ export default function RoutinesPage() {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-text-primary">Routines</h1>
+        <h1 className="text-xl md:text-2xl font-semibold text-text-primary">Routines</h1>
         <button
           onClick={openAdd}
-          className="px-4 py-2 bg-accent text-black rounded font-medium hover:bg-accent-hover transition-colors"
+          className="px-4 py-2.5 bg-accent text-black rounded-xl font-medium hover:bg-accent-hover active:scale-[0.98] transition-all"
         >
           Add Routine
         </button>
@@ -173,7 +173,7 @@ export default function RoutinesPage() {
 
       {/* Form */}
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-bg-surface rounded-lg p-4 border border-border-default mb-6">
+        <form onSubmit={handleSubmit} className="bg-bg-surface rounded-xl p-4 border border-border-default mb-6 shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
           <div className="grid grid-cols-2 gap-3 mb-3">
             <input
               value={form.title}
@@ -299,7 +299,7 @@ export default function RoutinesPage() {
             return (
               <div
                 key={r.id}
-                className={`bg-bg-surface rounded-lg p-4 border border-border-default group ${!r.isActive ? 'opacity-50' : ''}`}
+                className={`bg-bg-surface rounded-xl p-4 border border-border-default group transition-all hover:shadow-[0_2px_12px_rgba(0,0,0,0.3)] ${!r.isActive ? 'opacity-40' : ''}`}
                 style={{ borderLeft: `4px solid ${color}` }}
               >
                 <div className="flex items-start justify-between">

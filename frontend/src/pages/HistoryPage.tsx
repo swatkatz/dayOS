@@ -49,7 +49,7 @@ export default function HistoryPage() {
   if (plans.length === 0) {
     return (
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-semibold text-text-primary mb-6">History</h1>
+        <h1 className="text-xl md:text-2xl font-semibold text-text-primary mb-6">History</h1>
         <div className="text-center text-text-secondary py-16">
           No plans yet. Start planning on the Today page.
         </div>
@@ -59,7 +59,7 @@ export default function HistoryPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-semibold text-text-primary mb-6">History</h1>
+      <h1 className="text-xl md:text-2xl font-semibold text-text-primary mb-6">History</h1>
 
       <div className="space-y-2">
         {plans.map((plan) => {
@@ -70,7 +70,7 @@ export default function HistoryPage() {
             <div key={plan.id}>
               <button
                 onClick={() => setExpandedId(isExpanded ? null : plan.id)}
-                className="w-full text-left bg-bg-surface rounded-lg p-4 border border-border-default hover:bg-bg-surface-hover transition-colors"
+                className="w-full text-left bg-bg-surface rounded-xl p-4 border border-border-default hover:bg-bg-surface-hover transition-all hover:shadow-[0_2px_12px_rgba(0,0,0,0.3)]"
               >
                 <div className="flex items-center justify-between">
                   <div>

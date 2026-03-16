@@ -53,6 +53,7 @@ export const GET_RECENT_PLANS = gql`
         routineId
         notes
         skipped
+        done
       }
     }
   }
@@ -82,6 +83,7 @@ export const ACCEPT_PLAN = gql`
         routineId
         notes
         skipped
+        done
       }
     }
   }
@@ -101,6 +103,7 @@ export const SKIP_BLOCK = gql`
         routineId
         notes
         skipped
+        done
       }
     }
   }
@@ -160,6 +163,7 @@ export const UPDATE_BLOCK = gql`
         routineId
         notes
         skipped
+        done
       }
     }
   }

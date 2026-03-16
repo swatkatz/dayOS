@@ -52,7 +52,7 @@ export default function QuickAddForm({ onClose }: Props) {
     <form
       onSubmit={handleSubmit}
       onKeyDown={handleKeyDown}
-      className="bg-bg-surface rounded-lg p-4 border border-border-default mb-4"
+      className="bg-bg-surface rounded-xl p-4 border border-border-default mb-4 shadow-[0_4px_24px_rgba(0,0,0,0.3)]"
     >
       <div className="grid grid-cols-2 gap-3 mb-3">
         <input
