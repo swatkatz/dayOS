@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"dayos/db"
+	"dayos/identity"
 	"dayos/planner"
 	"dayos/tz"
 
@@ -17,8 +18,15 @@ func boolPtrVal(b bool) *bool { return &b }
 
 // buildPlanChatInput gathers all context data from stores and builds the planner input.
 func (r *mutationResolver) buildPlanChatInput(ctx context.Context, plan db.DayPlan, userMessage string, planDate time.Time, isReplan bool) (planner.PlanChatInput, error) {
+	// Get user display name for personalized prompts
+	userName := ""
+	if u, ok := identity.FromContext(ctx); ok {
+		userName = u.DisplayName
+	}
+
 	input := planner.PlanChatInput{
 		UserMessage: userMessage,
+		UserName:    userName,
 		IsReplan:    isReplan,
 	}
 

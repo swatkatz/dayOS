@@ -9,6 +9,7 @@ import (
 	"context"
 	"dayos/db"
 	"dayos/graph/model"
+	"dayos/identity"
 	"dayos/planner"
 	"fmt"
 	"log"
@@ -528,7 +529,11 @@ func (r *mutationResolver) StartTaskConversation(ctx context.Context, message st
 		return nil, fmt.Errorf("creating conversation: %w", err)
 	}
 
-	output, err := r.Planner.TaskChat(ctx, nil, message)
+	userName := ""
+	if u, ok := identity.FromContext(ctx); ok {
+		userName = u.DisplayName
+	}
+	output, err := r.Planner.TaskChat(ctx, nil, message, userName)
 	if err != nil {
 		return nil, fmt.Errorf("calling AI: %w", err)
 	}
@@ -572,7 +577,11 @@ func (r *mutationResolver) SendTaskMessage(ctx context.Context, conversationID u
 		history[i] = planner.Message{Role: m.Role, Content: m.Content}
 	}
 
-	output, err := r.Planner.TaskChat(ctx, history, message)
+	taskUserName := ""
+	if u, ok := identity.FromContext(ctx); ok {
+		taskUserName = u.DisplayName
+	}
+	output, err := r.Planner.TaskChat(ctx, history, message, taskUserName)
 	if err != nil {
 		return nil, fmt.Errorf("calling AI: %w", err)
 	}

@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useClerk, useUser } from '@clerk/clerk-react'
 
 const NAV_ITEMS = [
   { path: '/', label: 'Today', emoji: '☀️' },
@@ -10,6 +11,8 @@ const NAV_ITEMS = [
 
 export default function Sidebar() {
   const { pathname } = useLocation()
+  const { signOut } = useClerk()
+  const { user } = useUser()
 
   return (
     <>
@@ -18,7 +21,7 @@ export default function Sidebar() {
         <div className="px-5 py-5">
           <span className="text-lg font-semibold text-accent tracking-tight">🗓️ DayOS</span>
         </div>
-        <nav className="flex flex-col gap-0.5 px-2">
+        <nav className="flex flex-col gap-0.5 px-2 flex-1">
           {NAV_ITEMS.map(({ path, label, emoji }) => {
             const active = pathname === path
             return (
@@ -36,6 +39,19 @@ export default function Sidebar() {
             )
           })}
         </nav>
+        <div className="px-3 py-4 border-t border-border-default">
+          {user && (
+            <div className="text-xs text-text-secondary truncate mb-2 px-2">
+              {user.primaryEmailAddress?.emailAddress}
+            </div>
+          )}
+          <button
+            onClick={() => signOut()}
+            className="w-full py-2 px-3 rounded-lg text-sm text-text-secondary hover:text-text-primary hover:bg-bg-surface-hover transition-all text-left"
+          >
+            <span className="mr-2.5">🚪</span>Sign out
+          </button>
+        </div>
       </aside>
 
       {/* Mobile bottom nav — fixed to bottom for thumb reach */}
@@ -57,6 +73,13 @@ export default function Sidebar() {
             </Link>
           )
         })}
+        <button
+          onClick={() => signOut()}
+          className="flex flex-col items-center gap-0.5 py-2.5 px-1 min-w-[56px] transition-colors text-text-secondary active:text-text-primary"
+        >
+          <span className="text-lg leading-none">🚪</span>
+          <span className="text-[10px] font-medium leading-none">Sign out</span>
+        </button>
       </nav>
     </>
   )

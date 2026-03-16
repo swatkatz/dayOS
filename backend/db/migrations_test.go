@@ -18,6 +18,9 @@ import (
 var pool *pgxpool.Pool
 var databaseURL string
 
+// ownerUserID is the fixed UUID created by migration 012 for the data owner.
+const ownerUserID = "00000000-0000-0000-0000-000000000001"
+
 func TestMain(m *testing.M) {
 	dockerPool, err := dockertest.NewPool("")
 	if err != nil {
@@ -77,17 +80,17 @@ func TestMain(m *testing.M) {
 func TestAllTablesAcceptInserts(t *testing.T) {
 	ctx := context.Background()
 
-	// Insert into each table in dependency order
+	// Insert into each table in dependency order (all rows scoped to owner user)
 	inserts := []struct {
 		name  string
 		query string
 	}{
-		{"routines", `INSERT INTO routines (title, category, frequency) VALUES ('Morning run', 'exercise', 'daily') RETURNING id`},
-		{"tasks", `INSERT INTO tasks (title, category, priority) VALUES ('Buy groceries', 'admin', 'medium') RETURNING id`},
-		{"context_entries", `INSERT INTO context_entries (category, key, value) VALUES ('test', 'test_key', 'test_value') RETURNING id`},
-		{"day_plans", `INSERT INTO day_plans (plan_date, blocks) VALUES ('2099-01-01', '[]'::jsonb) RETURNING id`},
-		{"plan_messages", `INSERT INTO plan_messages (plan_id, role, content) VALUES ((SELECT id FROM day_plans LIMIT 1), 'user', 'hello') RETURNING id`},
-		{"task_conversations", `INSERT INTO task_conversations (parent_task_id) VALUES ((SELECT id FROM tasks LIMIT 1)) RETURNING id`},
+		{"routines", fmt.Sprintf(`INSERT INTO routines (user_id, title, category, frequency) VALUES ('%s', 'Morning run', 'exercise', 'daily') RETURNING id`, ownerUserID)},
+		{"tasks", fmt.Sprintf(`INSERT INTO tasks (user_id, title, category, priority) VALUES ('%s', 'Buy groceries', 'admin', 'medium') RETURNING id`, ownerUserID)},
+		{"context_entries", fmt.Sprintf(`INSERT INTO context_entries (user_id, category, key, value) VALUES ('%s', 'test', 'test_key', 'test_value') RETURNING id`, ownerUserID)},
+		{"day_plans", fmt.Sprintf(`INSERT INTO day_plans (user_id, plan_date, blocks) VALUES ('%s', '2099-01-01', '[]'::jsonb) RETURNING id`, ownerUserID)},
+		{"plan_messages", `INSERT INTO plan_messages (plan_id, role, content) VALUES ((SELECT id FROM day_plans WHERE plan_date = '2099-01-01' LIMIT 1), 'user', 'hello') RETURNING id`},
+		{"task_conversations", fmt.Sprintf(`INSERT INTO task_conversations (user_id, parent_task_id) VALUES ('%s', (SELECT id FROM tasks WHERE title = 'Buy groceries' LIMIT 1)) RETURNING id`, ownerUserID)},
 		{"task_messages", `INSERT INTO task_messages (conversation_id, role, content) VALUES ((SELECT id FROM task_conversations LIMIT 1), 'user', 'hello') RETURNING id`},
 	}
 
@@ -164,14 +167,14 @@ func TestCascadeDeleteParentTask(t *testing.T) {
 
 	// Create parent task
 	var parentID string
-	err := pool.QueryRow(ctx, `INSERT INTO tasks (title, category, priority) VALUES ('Parent', 'admin', 'high') RETURNING id`).Scan(&parentID)
+	err := pool.QueryRow(ctx, fmt.Sprintf(`INSERT INTO tasks (user_id, title, category, priority) VALUES ('%s', 'Parent', 'admin', 'high') RETURNING id`, ownerUserID)).Scan(&parentID)
 	if err != nil {
 		t.Fatalf("inserting parent: %v", err)
 	}
 
 	// Create subtasks
 	for i := range 3 {
-		_, err := pool.Exec(ctx, `INSERT INTO tasks (title, category, priority, parent_id) VALUES ($1, 'admin', 'low', $2)`,
+		_, err := pool.Exec(ctx, fmt.Sprintf(`INSERT INTO tasks (user_id, title, category, priority, parent_id) VALUES ('%s', $1, 'admin', 'low', $2)`, ownerUserID),
 			fmt.Sprintf("Child %d", i), parentID)
 		if err != nil {
 			t.Fatalf("inserting child %d: %v", i, err)
@@ -207,14 +210,14 @@ func TestSetNullOnRoutineDelete(t *testing.T) {
 
 	// Create routine
 	var routineID string
-	err := pool.QueryRow(ctx, `INSERT INTO routines (title, category, frequency) VALUES ('Yoga', 'exercise', 'daily') RETURNING id`).Scan(&routineID)
+	err := pool.QueryRow(ctx, fmt.Sprintf(`INSERT INTO routines (user_id, title, category, frequency) VALUES ('%s', 'Yoga', 'exercise', 'daily') RETURNING id`, ownerUserID)).Scan(&routineID)
 	if err != nil {
 		t.Fatalf("inserting routine: %v", err)
 	}
 
 	// Create task linked to routine
 	var taskID string
-	err = pool.QueryRow(ctx, `INSERT INTO tasks (title, category, priority, is_routine, routine_id) VALUES ('Do yoga', 'exercise', 'medium', true, $1) RETURNING id`, routineID).Scan(&taskID)
+	err = pool.QueryRow(ctx, fmt.Sprintf(`INSERT INTO tasks (user_id, title, category, priority, is_routine, routine_id) VALUES ('%s', 'Do yoga', 'exercise', 'medium', true, $1) RETURNING id`, ownerUserID), routineID).Scan(&taskID)
 	if err != nil {
 		t.Fatalf("inserting task: %v", err)
 	}
@@ -239,19 +242,32 @@ func TestSetNullOnRoutineDelete(t *testing.T) {
 	_, _ = pool.Exec(ctx, "DELETE FROM tasks WHERE id = $1", taskID)
 }
 
-func TestUniquePlanDate(t *testing.T) {
+func TestUniquePlanDatePerUser(t *testing.T) {
 	ctx := context.Background()
 
-	_, err := pool.Exec(ctx, `INSERT INTO day_plans (plan_date, blocks) VALUES ('2026-03-05', '[]'::jsonb)`)
+	// Same user, same date → should conflict
+	_, err := pool.Exec(ctx, fmt.Sprintf(`INSERT INTO day_plans (user_id, plan_date, blocks) VALUES ('%s', '2026-03-05', '[]'::jsonb)`, ownerUserID))
 	if err != nil {
 		t.Fatalf("first insert: %v", err)
 	}
 
-	_, err = pool.Exec(ctx, `INSERT INTO day_plans (plan_date, blocks) VALUES ('2026-03-05', '[]'::jsonb)`)
+	_, err = pool.Exec(ctx, fmt.Sprintf(`INSERT INTO day_plans (user_id, plan_date, blocks) VALUES ('%s', '2026-03-05', '[]'::jsonb)`, ownerUserID))
 	if err == nil {
-		t.Fatal("expected unique constraint violation, got nil")
+		t.Fatal("expected unique constraint violation for same user+date, got nil")
+	}
+
+	// Different user, same date → should succeed
+	_, err = pool.Exec(ctx, `INSERT INTO users (id, clerk_id, email) VALUES ('00000000-0000-0000-0000-000000000002', 'test_user_2', 'test2@example.com')`)
+	if err != nil {
+		t.Fatalf("creating second user: %v", err)
+	}
+
+	_, err = pool.Exec(ctx, `INSERT INTO day_plans (user_id, plan_date, blocks) VALUES ('00000000-0000-0000-0000-000000000002', '2026-03-05', '[]'::jsonb)`)
+	if err != nil {
+		t.Fatalf("second user same date should succeed: %v", err)
 	}
 
 	// Cleanup
 	_, _ = pool.Exec(ctx, "DELETE FROM day_plans WHERE plan_date = '2026-03-05'")
+	_, _ = pool.Exec(ctx, "DELETE FROM users WHERE id = '00000000-0000-0000-0000-000000000002'")
 }

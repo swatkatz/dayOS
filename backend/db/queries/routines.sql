@@ -1,8 +1,9 @@
 -- name: UpsertRoutine :one
-INSERT INTO routines (id, title, category, frequency, days_of_week,
+INSERT INTO routines (id, user_id, title, category, frequency, days_of_week,
   preferred_time_of_day, preferred_duration_min, preferred_exact_time, notes, is_active)
 VALUES (
   COALESCE(sqlc.narg('id')::UUID, gen_random_uuid()),
+  @user_id,
   sqlc.arg('title'),
   sqlc.arg('category'),
   sqlc.arg('frequency'),
@@ -26,24 +27,26 @@ ON CONFLICT (id) DO UPDATE SET
 RETURNING *;
 
 -- name: GetRoutine :one
-SELECT * FROM routines WHERE id = $1;
+SELECT * FROM routines WHERE id = $1 AND user_id = @user_id;
 
 -- name: ListRoutines :many
 SELECT * FROM routines
-WHERE (sqlc.narg('active_only')::BOOLEAN IS NULL OR sqlc.narg('active_only') = false OR is_active = true)
+WHERE user_id = @user_id
+  AND (sqlc.narg('active_only')::BOOLEAN IS NULL OR sqlc.narg('active_only') = false OR is_active = true)
 ORDER BY created_at;
 
 -- name: DeleteRoutine :exec
-DELETE FROM routines WHERE id = $1;
+DELETE FROM routines WHERE id = $1 AND user_id = @user_id;
 
 -- name: ListRoutinesForDay :many
 -- Used by planner: active routines that apply to a given day-of-week
 SELECT * FROM routines
-WHERE is_active = true
+WHERE user_id = @user_id
+  AND is_active = true
   AND (
     LOWER(frequency) = 'daily'
-    OR (LOWER(frequency) = 'weekdays' AND $1::INT BETWEEN 1 AND 5)
-    OR (LOWER(frequency) = 'weekly' AND $1::INT = ANY(days_of_week))
-    OR (LOWER(frequency) = 'custom' AND $1::INT = ANY(days_of_week))
+    OR (LOWER(frequency) = 'weekdays' AND @day_of_week::INT BETWEEN 1 AND 5)
+    OR (LOWER(frequency) = 'weekly' AND @day_of_week::INT = ANY(days_of_week))
+    OR (LOWER(frequency) = 'custom' AND @day_of_week::INT = ANY(days_of_week))
   )
 ORDER BY preferred_exact_time NULLS LAST, preferred_time_of_day, title;

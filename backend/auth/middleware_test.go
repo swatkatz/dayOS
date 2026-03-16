@@ -5,88 +5,79 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"dayos/identity"
 )
 
 func okHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`ok`))
+		// Verify user is in context if auth succeeded
+		if u, ok := identity.FromContext(r.Context()); ok {
+			w.Write([]byte("user:" + u.ClerkID))
+		} else {
+			w.Write([]byte("ok"))
+		}
 	})
 }
 
-func TestRequireAuth(t *testing.T) {
-	secret := "test-secret-123"
-	handler := RequireAuth(secret)(okHandler())
+func TestRequireClerk_NoHeader(t *testing.T) {
+	// We can't easily test with real Clerk JWTs, but we can test the
+	// header extraction logic by sending requests without valid tokens.
+	handler := RequireClerk(nil)(okHandler())
 
-	tests := []struct {
-		name       string
-		authHeader string
-		wantStatus int
-		wantBody   string
-	}{
-		{
-			name:       "valid bearer token",
-			authHeader: "Bearer test-secret-123",
-			wantStatus: http.StatusOK,
-			wantBody:   "ok",
-		},
-		{
-			name:       "wrong token",
-			authHeader: "Bearer wrong-secret",
-			wantStatus: http.StatusUnauthorized,
-			wantBody:   `{"error": "unauthorized"}`,
-		},
-		{
-			name:       "no authorization header",
-			authHeader: "",
-			wantStatus: http.StatusUnauthorized,
-			wantBody:   `{"error": "unauthorized"}`,
-		},
-		{
-			name:       "wrong scheme (Basic)",
-			authHeader: "Basic dXNlcjpwYXNz",
-			wantStatus: http.StatusUnauthorized,
-			wantBody:   `{"error": "unauthorized"}`,
-		},
-		{
-			name:       "empty token after Bearer",
-			authHeader: "Bearer ",
-			wantStatus: http.StatusUnauthorized,
-			wantBody:   `{"error": "unauthorized"}`,
-		},
-		{
-			name:       "bearer lowercase",
-			authHeader: "bearer test-secret-123",
-			wantStatus: http.StatusUnauthorized,
-			wantBody:   `{"error": "unauthorized"}`,
-		},
+	req := httptest.NewRequest(http.MethodPost, "/graphql", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want %d", rr.Code, http.StatusUnauthorized)
 	}
+	body, _ := io.ReadAll(rr.Body)
+	if string(body) != `{"error": "unauthorized"}` {
+		t.Errorf("body = %q, want unauthorized JSON", string(body))
+	}
+	ct := rr.Header().Get("Content-Type")
+	if ct != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", ct)
+	}
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "/graphql", nil)
-			if tt.authHeader != "" {
-				req.Header.Set("Authorization", tt.authHeader)
-			}
-			rr := httptest.NewRecorder()
+func TestRequireClerk_EmptyBearer(t *testing.T) {
+	handler := RequireClerk(nil)(okHandler())
 
-			handler.ServeHTTP(rr, req)
+	req := httptest.NewRequest(http.MethodPost, "/graphql", nil)
+	req.Header.Set("Authorization", "Bearer ")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
 
-			if rr.Code != tt.wantStatus {
-				t.Errorf("status = %d, want %d", rr.Code, tt.wantStatus)
-			}
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want %d", rr.Code, http.StatusUnauthorized)
+	}
+}
 
-			body, _ := io.ReadAll(rr.Body)
-			if string(body) != tt.wantBody {
-				t.Errorf("body = %q, want %q", string(body), tt.wantBody)
-			}
+func TestRequireClerk_WrongScheme(t *testing.T) {
+	handler := RequireClerk(nil)(okHandler())
 
-			if tt.wantStatus == http.StatusUnauthorized {
-				ct := rr.Header().Get("Content-Type")
-				if ct != "application/json" {
-					t.Errorf("Content-Type = %q, want application/json", ct)
-				}
-			}
-		})
+	req := httptest.NewRequest(http.MethodPost, "/graphql", nil)
+	req.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want %d", rr.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestRequireClerk_InvalidJWT(t *testing.T) {
+	handler := RequireClerk(nil)(okHandler())
+
+	req := httptest.NewRequest(http.MethodPost, "/graphql", nil)
+	req.Header.Set("Authorization", "Bearer invalid-jwt-token")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want %d", rr.Code, http.StatusUnauthorized)
 	}
 }

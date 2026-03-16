@@ -14,14 +14,20 @@ import (
 const computeActualMinutesForTask = `-- name: ComputeActualMinutesForTask :one
 SELECT COALESCE(SUM((elem->>'duration')::int), 0)::int AS total_minutes
 FROM day_plans, jsonb_array_elements(blocks) AS elem
-WHERE status = 'accepted'
-  AND elem->>'task_id' = $1::text
+WHERE user_id = $1
+  AND status = 'accepted'
+  AND elem->>'task_id' = $2::text
   AND (elem->>'skipped')::boolean = false
 `
 
+type ComputeActualMinutesForTaskParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	TaskID string      `json:"task_id"`
+}
+
 // Sums duration of non-skipped blocks referencing a given task_id across all accepted plans.
-func (q *Queries) ComputeActualMinutesForTask(ctx context.Context, taskID string) (int32, error) {
-	row := q.db.QueryRow(ctx, computeActualMinutesForTask, taskID)
+func (q *Queries) ComputeActualMinutesForTask(ctx context.Context, arg ComputeActualMinutesForTaskParams) (int32, error) {
+	row := q.db.QueryRow(ctx, computeActualMinutesForTask, arg.UserID, arg.TaskID)
 	var total_minutes int32
 	err := row.Scan(&total_minutes)
 	return total_minutes, err
@@ -34,14 +40,20 @@ SELECT elem->>'id' AS block_id,
        (elem->>'duration')::int AS duration,
        (elem->>'task_id') AS task_id
 FROM day_plans, jsonb_array_elements(blocks) AS elem
-WHERE status = 'accepted'
-  AND plan_date < $1::date
+WHERE user_id = $1
+  AND status = 'accepted'
+  AND plan_date < $2::date
   AND (elem->>'skipped')::boolean = true
   AND elem->>'task_id' IS NOT NULL
   AND elem->>'task_id' != 'null'
   AND elem->>'task_id' != ''
 ORDER BY plan_date DESC
 `
+
+type GetSkippedBlocksFromLastPlanParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	Today  pgtype.Date `json:"today"`
+}
 
 type GetSkippedBlocksFromLastPlanRow struct {
 	BlockID  interface{} `json:"block_id"`
@@ -52,8 +64,8 @@ type GetSkippedBlocksFromLastPlanRow struct {
 }
 
 // Returns skipped blocks with task_ids from the most recent accepted plan before today.
-func (q *Queries) GetSkippedBlocksFromLastPlan(ctx context.Context, today pgtype.Date) ([]GetSkippedBlocksFromLastPlanRow, error) {
-	rows, err := q.db.Query(ctx, getSkippedBlocksFromLastPlan, today)
+func (q *Queries) GetSkippedBlocksFromLastPlan(ctx context.Context, arg GetSkippedBlocksFromLastPlanParams) ([]GetSkippedBlocksFromLastPlanRow, error) {
+	rows, err := q.db.Query(ctx, getSkippedBlocksFromLastPlan, arg.UserID, arg.Today)
 	if err != nil {
 		return nil, err
 	}

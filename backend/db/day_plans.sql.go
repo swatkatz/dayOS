@@ -12,19 +12,25 @@ import (
 )
 
 const createDayPlan = `-- name: CreateDayPlan :one
-INSERT INTO day_plans (plan_date, status, blocks)
-VALUES ($1, $2, $3)
-RETURNING id, plan_date, status, blocks, created_at, updated_at
+INSERT INTO day_plans (user_id, plan_date, status, blocks)
+VALUES ($4, $1, $2, $3)
+RETURNING id, plan_date, status, blocks, created_at, updated_at, user_id
 `
 
 type CreateDayPlanParams struct {
 	PlanDate pgtype.Date `json:"plan_date"`
 	Status   string      `json:"status"`
 	Blocks   []byte      `json:"blocks"`
+	UserID   pgtype.UUID `json:"user_id"`
 }
 
 func (q *Queries) CreateDayPlan(ctx context.Context, arg CreateDayPlanParams) (DayPlan, error) {
-	row := q.db.QueryRow(ctx, createDayPlan, arg.PlanDate, arg.Status, arg.Blocks)
+	row := q.db.QueryRow(ctx, createDayPlan,
+		arg.PlanDate,
+		arg.Status,
+		arg.Blocks,
+		arg.UserID,
+	)
 	var i DayPlan
 	err := row.Scan(
 		&i.ID,
@@ -33,6 +39,7 @@ func (q *Queries) CreateDayPlan(ctx context.Context, arg CreateDayPlanParams) (D
 		&i.Blocks,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
@@ -63,11 +70,16 @@ func (q *Queries) CreatePlanMessage(ctx context.Context, arg CreatePlanMessagePa
 }
 
 const getDayPlanByDate = `-- name: GetDayPlanByDate :one
-SELECT id, plan_date, status, blocks, created_at, updated_at FROM day_plans WHERE plan_date = $1
+SELECT id, plan_date, status, blocks, created_at, updated_at, user_id FROM day_plans WHERE user_id = $2 AND plan_date = $1
 `
 
-func (q *Queries) GetDayPlanByDate(ctx context.Context, planDate pgtype.Date) (DayPlan, error) {
-	row := q.db.QueryRow(ctx, getDayPlanByDate, planDate)
+type GetDayPlanByDateParams struct {
+	PlanDate pgtype.Date `json:"plan_date"`
+	UserID   pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetDayPlanByDate(ctx context.Context, arg GetDayPlanByDateParams) (DayPlan, error) {
+	row := q.db.QueryRow(ctx, getDayPlanByDate, arg.PlanDate, arg.UserID)
 	var i DayPlan
 	err := row.Scan(
 		&i.ID,
@@ -76,16 +88,22 @@ func (q *Queries) GetDayPlanByDate(ctx context.Context, planDate pgtype.Date) (D
 		&i.Blocks,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const getDayPlanByID = `-- name: GetDayPlanByID :one
-SELECT id, plan_date, status, blocks, created_at, updated_at FROM day_plans WHERE id = $1
+SELECT id, plan_date, status, blocks, created_at, updated_at, user_id FROM day_plans WHERE id = $1 AND user_id = $2
 `
 
-func (q *Queries) GetDayPlanByID(ctx context.Context, id pgtype.UUID) (DayPlan, error) {
-	row := q.db.QueryRow(ctx, getDayPlanByID, id)
+type GetDayPlanByIDParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetDayPlanByID(ctx context.Context, arg GetDayPlanByIDParams) (DayPlan, error) {
+	row := q.db.QueryRow(ctx, getDayPlanByID, arg.ID, arg.UserID)
 	var i DayPlan
 	err := row.Scan(
 		&i.ID,
@@ -94,6 +112,7 @@ func (q *Queries) GetDayPlanByID(ctx context.Context, id pgtype.UUID) (DayPlan, 
 		&i.Blocks,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
@@ -129,11 +148,16 @@ func (q *Queries) GetPlanMessages(ctx context.Context, planID pgtype.UUID) ([]Pl
 }
 
 const recentPlans = `-- name: RecentPlans :many
-SELECT id, plan_date, status, blocks, created_at, updated_at FROM day_plans ORDER BY plan_date DESC LIMIT $1
+SELECT id, plan_date, status, blocks, created_at, updated_at, user_id FROM day_plans WHERE user_id = $2 ORDER BY plan_date DESC LIMIT $1
 `
 
-func (q *Queries) RecentPlans(ctx context.Context, limit int32) ([]DayPlan, error) {
-	rows, err := q.db.Query(ctx, recentPlans, limit)
+type RecentPlansParams struct {
+	Limit  int32       `json:"limit"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) RecentPlans(ctx context.Context, arg RecentPlansParams) ([]DayPlan, error) {
+	rows, err := q.db.Query(ctx, recentPlans, arg.Limit, arg.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -148,6 +172,7 @@ func (q *Queries) RecentPlans(ctx context.Context, limit int32) ([]DayPlan, erro
 			&i.Blocks,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UserID,
 		); err != nil {
 			return nil, err
 		}
@@ -161,16 +186,17 @@ func (q *Queries) RecentPlans(ctx context.Context, limit int32) ([]DayPlan, erro
 
 const updateDayPlanBlocks = `-- name: UpdateDayPlanBlocks :one
 UPDATE day_plans SET blocks = $2, updated_at = now()
-WHERE id = $1 RETURNING id, plan_date, status, blocks, created_at, updated_at
+WHERE id = $1 AND user_id = $3 RETURNING id, plan_date, status, blocks, created_at, updated_at, user_id
 `
 
 type UpdateDayPlanBlocksParams struct {
 	ID     pgtype.UUID `json:"id"`
 	Blocks []byte      `json:"blocks"`
+	UserID pgtype.UUID `json:"user_id"`
 }
 
 func (q *Queries) UpdateDayPlanBlocks(ctx context.Context, arg UpdateDayPlanBlocksParams) (DayPlan, error) {
-	row := q.db.QueryRow(ctx, updateDayPlanBlocks, arg.ID, arg.Blocks)
+	row := q.db.QueryRow(ctx, updateDayPlanBlocks, arg.ID, arg.Blocks, arg.UserID)
 	var i DayPlan
 	err := row.Scan(
 		&i.ID,
@@ -179,22 +205,24 @@ func (q *Queries) UpdateDayPlanBlocks(ctx context.Context, arg UpdateDayPlanBloc
 		&i.Blocks,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const updateDayPlanStatus = `-- name: UpdateDayPlanStatus :one
 UPDATE day_plans SET status = $2, updated_at = now()
-WHERE id = $1 RETURNING id, plan_date, status, blocks, created_at, updated_at
+WHERE id = $1 AND user_id = $3 RETURNING id, plan_date, status, blocks, created_at, updated_at, user_id
 `
 
 type UpdateDayPlanStatusParams struct {
 	ID     pgtype.UUID `json:"id"`
 	Status string      `json:"status"`
+	UserID pgtype.UUID `json:"user_id"`
 }
 
 func (q *Queries) UpdateDayPlanStatus(ctx context.Context, arg UpdateDayPlanStatusParams) (DayPlan, error) {
-	row := q.db.QueryRow(ctx, updateDayPlanStatus, arg.ID, arg.Status)
+	row := q.db.QueryRow(ctx, updateDayPlanStatus, arg.ID, arg.Status, arg.UserID)
 	var i DayPlan
 	err := row.Scan(
 		&i.ID,
@@ -203,6 +231,7 @@ func (q *Queries) UpdateDayPlanStatus(ctx context.Context, arg UpdateDayPlanStat
 		&i.Blocks,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }

@@ -13,12 +13,17 @@ import (
 
 const completeTask = `-- name: CompleteTask :one
 UPDATE tasks SET is_completed = true, completed_at = now(), updated_at = now()
-WHERE id = $1
-RETURNING id, title, category, priority, parent_id, estimated_minutes, actual_minutes, deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id, times_deferred, last_deferred_at, is_completed, completed_at, created_at, updated_at
+WHERE id = $1 AND user_id = $2
+RETURNING id, title, category, priority, parent_id, estimated_minutes, actual_minutes, deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id, times_deferred, last_deferred_at, is_completed, completed_at, created_at, updated_at, user_id
 `
 
-func (q *Queries) CompleteTask(ctx context.Context, id pgtype.UUID) (Task, error) {
-	row := q.db.QueryRow(ctx, completeTask, id)
+type CompleteTaskParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) CompleteTask(ctx context.Context, arg CompleteTaskParams) (Task, error) {
+	row := q.db.QueryRow(ctx, completeTask, arg.ID, arg.UserID)
 	var i Task
 	err := row.Scan(
 		&i.ID,
@@ -40,26 +45,32 @@ func (q *Queries) CompleteTask(ctx context.Context, id pgtype.UUID) (Task, error
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const countIncompleteSubtasks = `-- name: CountIncompleteSubtasks :one
-SELECT COUNT(*) FROM tasks WHERE parent_id = $1 AND is_completed = false
+SELECT COUNT(*) FROM tasks WHERE parent_id = $1 AND user_id = $2 AND is_completed = false
 `
 
-func (q *Queries) CountIncompleteSubtasks(ctx context.Context, parentID pgtype.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countIncompleteSubtasks, parentID)
+type CountIncompleteSubtasksParams struct {
+	ParentID pgtype.UUID `json:"parent_id"`
+	UserID   pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) CountIncompleteSubtasks(ctx context.Context, arg CountIncompleteSubtasksParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countIncompleteSubtasks, arg.ParentID, arg.UserID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
 const createTask = `-- name: CreateTask :one
-INSERT INTO tasks (title, category, priority, parent_id, estimated_minutes,
+INSERT INTO tasks (user_id, title, category, priority, parent_id, estimated_minutes,
   deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, title, category, priority, parent_id, estimated_minutes, actual_minutes, deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id, times_deferred, last_deferred_at, is_completed, completed_at, created_at, updated_at
+VALUES ($12, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+RETURNING id, title, category, priority, parent_id, estimated_minutes, actual_minutes, deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id, times_deferred, last_deferred_at, is_completed, completed_at, created_at, updated_at, user_id
 `
 
 type CreateTaskParams struct {
@@ -74,6 +85,7 @@ type CreateTaskParams struct {
 	Notes            *string     `json:"notes"`
 	IsRoutine        *bool       `json:"is_routine"`
 	RoutineID        pgtype.UUID `json:"routine_id"`
+	UserID           pgtype.UUID `json:"user_id"`
 }
 
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
@@ -89,6 +101,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		arg.Notes,
 		arg.IsRoutine,
 		arg.RoutineID,
+		arg.UserID,
 	)
 	var i Task
 	err := row.Scan(
@@ -111,25 +124,36 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const deleteTask = `-- name: DeleteTask :exec
-DELETE FROM tasks WHERE id = $1
+DELETE FROM tasks WHERE id = $1 AND user_id = $2
 `
 
-func (q *Queries) DeleteTask(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, deleteTask, id)
+type DeleteTaskParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) DeleteTask(ctx context.Context, arg DeleteTaskParams) error {
+	_, err := q.db.Exec(ctx, deleteTask, arg.ID, arg.UserID)
 	return err
 }
 
 const getTask = `-- name: GetTask :one
-SELECT id, title, category, priority, parent_id, estimated_minutes, actual_minutes, deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id, times_deferred, last_deferred_at, is_completed, completed_at, created_at, updated_at FROM tasks WHERE id = $1
+SELECT id, title, category, priority, parent_id, estimated_minutes, actual_minutes, deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id, times_deferred, last_deferred_at, is_completed, completed_at, created_at, updated_at, user_id FROM tasks WHERE id = $1 AND user_id = $2
 `
 
-func (q *Queries) GetTask(ctx context.Context, id pgtype.UUID) (Task, error) {
-	row := q.db.QueryRow(ctx, getTask, id)
+type GetTaskParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetTask(ctx context.Context, arg GetTaskParams) (Task, error) {
+	row := q.db.QueryRow(ctx, getTask, arg.ID, arg.UserID)
 	var i Task
 	err := row.Scan(
 		&i.ID,
@@ -151,18 +175,24 @@ func (q *Queries) GetTask(ctx context.Context, id pgtype.UUID) (Task, error) {
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const incrementTimesDeferred = `-- name: IncrementTimesDeferred :one
 UPDATE tasks SET times_deferred = times_deferred + 1, last_deferred_at = now(), updated_at = now()
-WHERE id = $1
-RETURNING id, title, category, priority, parent_id, estimated_minutes, actual_minutes, deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id, times_deferred, last_deferred_at, is_completed, completed_at, created_at, updated_at
+WHERE id = $1 AND user_id = $2
+RETURNING id, title, category, priority, parent_id, estimated_minutes, actual_minutes, deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id, times_deferred, last_deferred_at, is_completed, completed_at, created_at, updated_at, user_id
 `
 
-func (q *Queries) IncrementTimesDeferred(ctx context.Context, id pgtype.UUID) (Task, error) {
-	row := q.db.QueryRow(ctx, incrementTimesDeferred, id)
+type IncrementTimesDeferredParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) IncrementTimesDeferred(ctx context.Context, arg IncrementTimesDeferredParams) (Task, error) {
+	row := q.db.QueryRow(ctx, incrementTimesDeferred, arg.ID, arg.UserID)
 	var i Task
 	err := row.Scan(
 		&i.ID,
@@ -184,13 +214,15 @@ func (q *Queries) IncrementTimesDeferred(ctx context.Context, id pgtype.UUID) (T
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const listSchedulableTasks = `-- name: ListSchedulableTasks :many
-SELECT id, title, category, priority, parent_id, estimated_minutes, actual_minutes, deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id, times_deferred, last_deferred_at, is_completed, completed_at, created_at, updated_at FROM tasks
-WHERE is_completed = false
+SELECT id, title, category, priority, parent_id, estimated_minutes, actual_minutes, deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id, times_deferred, last_deferred_at, is_completed, completed_at, created_at, updated_at, user_id FROM tasks
+WHERE user_id = $1
+  AND is_completed = false
   AND (parent_id IS NOT NULL OR (parent_id IS NULL AND estimated_minutes IS NOT NULL))
 ORDER BY
   CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END,
@@ -200,8 +232,8 @@ ORDER BY
 `
 
 // Used by planner: subtasks OR standalone tasks, incomplete only
-func (q *Queries) ListSchedulableTasks(ctx context.Context) ([]Task, error) {
-	rows, err := q.db.Query(ctx, listSchedulableTasks)
+func (q *Queries) ListSchedulableTasks(ctx context.Context, userID pgtype.UUID) ([]Task, error) {
+	rows, err := q.db.Query(ctx, listSchedulableTasks, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -229,6 +261,7 @@ func (q *Queries) ListSchedulableTasks(ctx context.Context) ([]Task, error) {
 			&i.CompletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UserID,
 		); err != nil {
 			return nil, err
 		}
@@ -241,11 +274,16 @@ func (q *Queries) ListSchedulableTasks(ctx context.Context) ([]Task, error) {
 }
 
 const listSubtasks = `-- name: ListSubtasks :many
-SELECT id, title, category, priority, parent_id, estimated_minutes, actual_minutes, deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id, times_deferred, last_deferred_at, is_completed, completed_at, created_at, updated_at FROM tasks WHERE parent_id = $1 ORDER BY created_at
+SELECT id, title, category, priority, parent_id, estimated_minutes, actual_minutes, deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id, times_deferred, last_deferred_at, is_completed, completed_at, created_at, updated_at, user_id FROM tasks WHERE parent_id = $1 AND user_id = $2 ORDER BY created_at
 `
 
-func (q *Queries) ListSubtasks(ctx context.Context, parentID pgtype.UUID) ([]Task, error) {
-	rows, err := q.db.Query(ctx, listSubtasks, parentID)
+type ListSubtasksParams struct {
+	ParentID pgtype.UUID `json:"parent_id"`
+	UserID   pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) ListSubtasks(ctx context.Context, arg ListSubtasksParams) ([]Task, error) {
+	rows, err := q.db.Query(ctx, listSubtasks, arg.ParentID, arg.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -273,6 +311,7 @@ func (q *Queries) ListSubtasks(ctx context.Context, parentID pgtype.UUID) ([]Tas
 			&i.CompletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UserID,
 		); err != nil {
 			return nil, err
 		}
@@ -285,21 +324,23 @@ func (q *Queries) ListSubtasks(ctx context.Context, parentID pgtype.UUID) ([]Tas
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT id, title, category, priority, parent_id, estimated_minutes, actual_minutes, deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id, times_deferred, last_deferred_at, is_completed, completed_at, created_at, updated_at FROM tasks
-WHERE ($1::TEXT IS NULL OR category = $1)
-  AND ($2::BOOLEAN = true OR is_completed = false)
+SELECT id, title, category, priority, parent_id, estimated_minutes, actual_minutes, deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id, times_deferred, last_deferred_at, is_completed, completed_at, created_at, updated_at, user_id FROM tasks
+WHERE user_id = $1
+  AND ($2::TEXT IS NULL OR category = $2)
+  AND ($3::BOOLEAN = true OR is_completed = false)
 ORDER BY
   CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END,
   created_at DESC
 `
 
 type ListTasksParams struct {
-	Category         *string `json:"category"`
-	IncludeCompleted *bool   `json:"include_completed"`
+	UserID           pgtype.UUID `json:"user_id"`
+	Category         *string     `json:"category"`
+	IncludeCompleted *bool       `json:"include_completed"`
 }
 
 func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error) {
-	rows, err := q.db.Query(ctx, listTasks, arg.Category, arg.IncludeCompleted)
+	rows, err := q.db.Query(ctx, listTasks, arg.UserID, arg.Category, arg.IncludeCompleted)
 	if err != nil {
 		return nil, err
 	}
@@ -327,6 +368,7 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, e
 			&i.CompletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UserID,
 		); err != nil {
 			return nil, err
 		}
@@ -340,12 +382,17 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, e
 
 const uncompleteTask = `-- name: UncompleteTask :one
 UPDATE tasks SET is_completed = false, completed_at = NULL, updated_at = now()
-WHERE id = $1
-RETURNING id, title, category, priority, parent_id, estimated_minutes, actual_minutes, deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id, times_deferred, last_deferred_at, is_completed, completed_at, created_at, updated_at
+WHERE id = $1 AND user_id = $2
+RETURNING id, title, category, priority, parent_id, estimated_minutes, actual_minutes, deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id, times_deferred, last_deferred_at, is_completed, completed_at, created_at, updated_at, user_id
 `
 
-func (q *Queries) UncompleteTask(ctx context.Context, id pgtype.UUID) (Task, error) {
-	row := q.db.QueryRow(ctx, uncompleteTask, id)
+type UncompleteTaskParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) UncompleteTask(ctx context.Context, arg UncompleteTaskParams) (Task, error) {
+	row := q.db.QueryRow(ctx, uncompleteTask, arg.ID, arg.UserID)
 	var i Task
 	err := row.Scan(
 		&i.ID,
@@ -367,22 +414,24 @@ func (q *Queries) UncompleteTask(ctx context.Context, id pgtype.UUID) (Task, err
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const updateActualMinutes = `-- name: UpdateActualMinutes :exec
 UPDATE tasks SET actual_minutes = actual_minutes + $2, updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND user_id = $3
 `
 
 type UpdateActualMinutesParams struct {
 	ID            pgtype.UUID `json:"id"`
 	ActualMinutes *int32      `json:"actual_minutes"`
+	UserID        pgtype.UUID `json:"user_id"`
 }
 
 func (q *Queries) UpdateActualMinutes(ctx context.Context, arg UpdateActualMinutesParams) error {
-	_, err := q.db.Exec(ctx, updateActualMinutes, arg.ID, arg.ActualMinutes)
+	_, err := q.db.Exec(ctx, updateActualMinutes, arg.ID, arg.ActualMinutes, arg.UserID)
 	return err
 }
 
@@ -398,8 +447,8 @@ UPDATE tasks SET
   notes = COALESCE($9, notes),
   routine_id = COALESCE($10, routine_id),
   updated_at = now()
-WHERE id = $1
-RETURNING id, title, category, priority, parent_id, estimated_minutes, actual_minutes, deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id, times_deferred, last_deferred_at, is_completed, completed_at, created_at, updated_at
+WHERE id = $1 AND user_id = $11
+RETURNING id, title, category, priority, parent_id, estimated_minutes, actual_minutes, deadline_type, deadline_date, deadline_days, notes, is_routine, routine_id, times_deferred, last_deferred_at, is_completed, completed_at, created_at, updated_at, user_id
 `
 
 type UpdateTaskParams struct {
@@ -413,6 +462,7 @@ type UpdateTaskParams struct {
 	DeadlineDays     *int32      `json:"deadline_days"`
 	Notes            *string     `json:"notes"`
 	RoutineID        pgtype.UUID `json:"routine_id"`
+	UserID           pgtype.UUID `json:"user_id"`
 }
 
 func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error) {
@@ -427,6 +477,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		arg.DeadlineDays,
 		arg.Notes,
 		arg.RoutineID,
+		arg.UserID,
 	)
 	var i Task
 	err := row.Scan(
@@ -449,6 +500,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }

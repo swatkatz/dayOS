@@ -1,16 +1,16 @@
 -- name: CreateTaskConversation :one
-INSERT INTO task_conversations (status) VALUES ('active')
+INSERT INTO task_conversations (user_id, status) VALUES (@user_id, 'active')
 RETURNING *;
 
 -- name: GetTaskConversation :one
-SELECT * FROM task_conversations WHERE id = $1;
+SELECT * FROM task_conversations WHERE id = $1 AND user_id = @user_id;
 
 -- name: UpdateTaskConversationStatus :one
-UPDATE task_conversations SET status = $2 WHERE id = $1
+UPDATE task_conversations SET status = $2 WHERE id = $1 AND user_id = @user_id
 RETURNING *;
 
 -- name: LinkTaskConversationParent :one
-UPDATE task_conversations SET parent_task_id = $2 WHERE id = $1
+UPDATE task_conversations SET parent_task_id = $2 WHERE id = $1 AND user_id = @user_id
 RETURNING *;
 
 -- name: CreateTaskMessage :one

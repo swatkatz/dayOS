@@ -12,18 +12,19 @@ import (
 )
 
 const createTaskConversation = `-- name: CreateTaskConversation :one
-INSERT INTO task_conversations (status) VALUES ('active')
-RETURNING id, parent_task_id, status, created_at
+INSERT INTO task_conversations (user_id, status) VALUES ($1, 'active')
+RETURNING id, parent_task_id, status, created_at, user_id
 `
 
-func (q *Queries) CreateTaskConversation(ctx context.Context) (TaskConversation, error) {
-	row := q.db.QueryRow(ctx, createTaskConversation)
+func (q *Queries) CreateTaskConversation(ctx context.Context, userID pgtype.UUID) (TaskConversation, error) {
+	row := q.db.QueryRow(ctx, createTaskConversation, userID)
 	var i TaskConversation
 	err := row.Scan(
 		&i.ID,
 		&i.ParentTaskID,
 		&i.Status,
 		&i.CreatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
@@ -53,17 +54,23 @@ func (q *Queries) CreateTaskMessage(ctx context.Context, arg CreateTaskMessagePa
 }
 
 const getTaskConversation = `-- name: GetTaskConversation :one
-SELECT id, parent_task_id, status, created_at FROM task_conversations WHERE id = $1
+SELECT id, parent_task_id, status, created_at, user_id FROM task_conversations WHERE id = $1 AND user_id = $2
 `
 
-func (q *Queries) GetTaskConversation(ctx context.Context, id pgtype.UUID) (TaskConversation, error) {
-	row := q.db.QueryRow(ctx, getTaskConversation, id)
+type GetTaskConversationParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetTaskConversation(ctx context.Context, arg GetTaskConversationParams) (TaskConversation, error) {
+	row := q.db.QueryRow(ctx, getTaskConversation, arg.ID, arg.UserID)
 	var i TaskConversation
 	err := row.Scan(
 		&i.ID,
 		&i.ParentTaskID,
 		&i.Status,
 		&i.CreatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
@@ -99,45 +106,49 @@ func (q *Queries) GetTaskMessages(ctx context.Context, conversationID pgtype.UUI
 }
 
 const linkTaskConversationParent = `-- name: LinkTaskConversationParent :one
-UPDATE task_conversations SET parent_task_id = $2 WHERE id = $1
-RETURNING id, parent_task_id, status, created_at
+UPDATE task_conversations SET parent_task_id = $2 WHERE id = $1 AND user_id = $3
+RETURNING id, parent_task_id, status, created_at, user_id
 `
 
 type LinkTaskConversationParentParams struct {
 	ID           pgtype.UUID `json:"id"`
 	ParentTaskID pgtype.UUID `json:"parent_task_id"`
+	UserID       pgtype.UUID `json:"user_id"`
 }
 
 func (q *Queries) LinkTaskConversationParent(ctx context.Context, arg LinkTaskConversationParentParams) (TaskConversation, error) {
-	row := q.db.QueryRow(ctx, linkTaskConversationParent, arg.ID, arg.ParentTaskID)
+	row := q.db.QueryRow(ctx, linkTaskConversationParent, arg.ID, arg.ParentTaskID, arg.UserID)
 	var i TaskConversation
 	err := row.Scan(
 		&i.ID,
 		&i.ParentTaskID,
 		&i.Status,
 		&i.CreatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const updateTaskConversationStatus = `-- name: UpdateTaskConversationStatus :one
-UPDATE task_conversations SET status = $2 WHERE id = $1
-RETURNING id, parent_task_id, status, created_at
+UPDATE task_conversations SET status = $2 WHERE id = $1 AND user_id = $3
+RETURNING id, parent_task_id, status, created_at, user_id
 `
 
 type UpdateTaskConversationStatusParams struct {
 	ID     pgtype.UUID `json:"id"`
 	Status string      `json:"status"`
+	UserID pgtype.UUID `json:"user_id"`
 }
 
 func (q *Queries) UpdateTaskConversationStatus(ctx context.Context, arg UpdateTaskConversationStatusParams) (TaskConversation, error) {
-	row := q.db.QueryRow(ctx, updateTaskConversationStatus, arg.ID, arg.Status)
+	row := q.db.QueryRow(ctx, updateTaskConversationStatus, arg.ID, arg.Status, arg.UserID)
 	var i TaskConversation
 	err := row.Scan(
 		&i.ID,
 		&i.ParentTaskID,
 		&i.Status,
 		&i.CreatedAt,
+		&i.UserID,
 	)
 	return i, err
 }

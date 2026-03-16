@@ -9,7 +9,7 @@ import (
 // PlannerService abstracts the planner for testability.
 type PlannerService interface {
 	PlanChat(ctx context.Context, input planner.PlanChatInput) (*planner.PlanChatOutput, error)
-	TaskChat(ctx context.Context, history []planner.Message, userMessage string) (*planner.TaskChatOutput, error)
+	TaskChat(ctx context.Context, history []planner.Message, userMessage string, userName string) (*planner.TaskChatOutput, error)
 }
 
 type Resolver struct {

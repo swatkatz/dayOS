@@ -16,6 +16,7 @@ type ContextEntry struct {
 	IsActive  *bool              `json:"is_active"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	UserID    pgtype.UUID        `json:"user_id"`
 }
 
 type DayPlan struct {
@@ -25,6 +26,7 @@ type DayPlan struct {
 	Blocks    []byte             `json:"blocks"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	UserID    pgtype.UUID        `json:"user_id"`
 }
 
 type GoogleAuth struct {
@@ -35,6 +37,7 @@ type GoogleAuth struct {
 	CalendarID   string             `json:"calendar_id"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	UserID       pgtype.UUID        `json:"user_id"`
 }
 
 type PlanMessage struct {
@@ -57,6 +60,7 @@ type Routine struct {
 	IsActive             *bool              `json:"is_active"`
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	PreferredExactTime   *string            `json:"preferred_exact_time"`
+	UserID               pgtype.UUID        `json:"user_id"`
 }
 
 type Task struct {
@@ -79,6 +83,7 @@ type Task struct {
 	CompletedAt      pgtype.Timestamptz `json:"completed_at"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	UserID           pgtype.UUID        `json:"user_id"`
 }
 
 type TaskConversation struct {
@@ -86,6 +91,7 @@ type TaskConversation struct {
 	ParentTaskID pgtype.UUID        `json:"parent_task_id"`
 	Status       string             `json:"status"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UserID       pgtype.UUID        `json:"user_id"`
 }
 
 type TaskMessage struct {
@@ -94,4 +100,17 @@ type TaskMessage struct {
 	Role           string             `json:"role"`
 	Content        string             `json:"content"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type User struct {
+	ID              pgtype.UUID        `json:"id"`
+	ClerkID         string             `json:"clerk_id"`
+	Email           string             `json:"email"`
+	DisplayName     *string            `json:"display_name"`
+	AnthropicApiKey *string            `json:"anthropic_api_key"`
+	DailyAiCap      int32              `json:"daily_ai_cap"`
+	AiCallsToday    int32              `json:"ai_calls_today"`
+	AiCallsDate     pgtype.Date        `json:"ai_calls_date"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }

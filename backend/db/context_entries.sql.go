@@ -12,20 +12,30 @@ import (
 )
 
 const deleteContextEntry = `-- name: DeleteContextEntry :exec
-DELETE FROM context_entries WHERE id = $1
+DELETE FROM context_entries WHERE id = $1 AND user_id = $2
 `
 
-func (q *Queries) DeleteContextEntry(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, deleteContextEntry, id)
+type DeleteContextEntryParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) DeleteContextEntry(ctx context.Context, arg DeleteContextEntryParams) error {
+	_, err := q.db.Exec(ctx, deleteContextEntry, arg.ID, arg.UserID)
 	return err
 }
 
 const getContextEntry = `-- name: GetContextEntry :one
-SELECT id, category, key, value, is_active, created_at, updated_at FROM context_entries WHERE id = $1
+SELECT id, category, key, value, is_active, created_at, updated_at, user_id FROM context_entries WHERE id = $1 AND user_id = $2
 `
 
-func (q *Queries) GetContextEntry(ctx context.Context, id pgtype.UUID) (ContextEntry, error) {
-	row := q.db.QueryRow(ctx, getContextEntry, id)
+type GetContextEntryParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetContextEntry(ctx context.Context, arg GetContextEntryParams) (ContextEntry, error) {
+	row := q.db.QueryRow(ctx, getContextEntry, arg.ID, arg.UserID)
 	var i ContextEntry
 	err := row.Scan(
 		&i.ID,
@@ -35,18 +45,19 @@ func (q *Queries) GetContextEntry(ctx context.Context, id pgtype.UUID) (ContextE
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const listActiveContextEntries = `-- name: ListActiveContextEntries :many
-SELECT id, category, key, value, is_active, created_at, updated_at FROM context_entries
-WHERE is_active = true
+SELECT id, category, key, value, is_active, created_at, updated_at, user_id FROM context_entries
+WHERE user_id = $1 AND is_active = true
 ORDER BY category, key
 `
 
-func (q *Queries) ListActiveContextEntries(ctx context.Context) ([]ContextEntry, error) {
-	rows, err := q.db.Query(ctx, listActiveContextEntries)
+func (q *Queries) ListActiveContextEntries(ctx context.Context, userID pgtype.UUID) ([]ContextEntry, error) {
+	rows, err := q.db.Query(ctx, listActiveContextEntries, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -62,6 +73,7 @@ func (q *Queries) ListActiveContextEntries(ctx context.Context) ([]ContextEntry,
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UserID,
 		); err != nil {
 			return nil, err
 		}
@@ -74,13 +86,19 @@ func (q *Queries) ListActiveContextEntries(ctx context.Context) ([]ContextEntry,
 }
 
 const listContextEntries = `-- name: ListContextEntries :many
-SELECT id, category, key, value, is_active, created_at, updated_at FROM context_entries
-WHERE ($1::TEXT IS NULL OR category = $1)
+SELECT id, category, key, value, is_active, created_at, updated_at, user_id FROM context_entries
+WHERE user_id = $1
+  AND ($2::TEXT IS NULL OR category = $2)
 ORDER BY category, key
 `
 
-func (q *Queries) ListContextEntries(ctx context.Context, category *string) ([]ContextEntry, error) {
-	rows, err := q.db.Query(ctx, listContextEntries, category)
+type ListContextEntriesParams struct {
+	UserID   pgtype.UUID `json:"user_id"`
+	Category *string     `json:"category"`
+}
+
+func (q *Queries) ListContextEntries(ctx context.Context, arg ListContextEntriesParams) ([]ContextEntry, error) {
+	rows, err := q.db.Query(ctx, listContextEntries, arg.UserID, arg.Category)
 	if err != nil {
 		return nil, err
 	}
@@ -96,6 +114,7 @@ func (q *Queries) ListContextEntries(ctx context.Context, category *string) ([]C
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UserID,
 		); err != nil {
 			return nil, err
 		}
@@ -109,17 +128,18 @@ func (q *Queries) ListContextEntries(ctx context.Context, category *string) ([]C
 
 const toggleContextEntry = `-- name: ToggleContextEntry :one
 UPDATE context_entries SET is_active = $2, updated_at = now()
-WHERE id = $1
-RETURNING id, category, key, value, is_active, created_at, updated_at
+WHERE id = $1 AND user_id = $3
+RETURNING id, category, key, value, is_active, created_at, updated_at, user_id
 `
 
 type ToggleContextEntryParams struct {
 	ID       pgtype.UUID `json:"id"`
 	IsActive *bool       `json:"is_active"`
+	UserID   pgtype.UUID `json:"user_id"`
 }
 
 func (q *Queries) ToggleContextEntry(ctx context.Context, arg ToggleContextEntryParams) (ContextEntry, error) {
-	row := q.db.QueryRow(ctx, toggleContextEntry, arg.ID, arg.IsActive)
+	row := q.db.QueryRow(ctx, toggleContextEntry, arg.ID, arg.IsActive, arg.UserID)
 	var i ContextEntry
 	err := row.Scan(
 		&i.ID,
@@ -129,27 +149,34 @@ func (q *Queries) ToggleContextEntry(ctx context.Context, arg ToggleContextEntry
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const upsertContextEntry = `-- name: UpsertContextEntry :one
-INSERT INTO context_entries (category, key, value)
-VALUES ($1, $2, $3)
-ON CONFLICT (category, key) DO UPDATE SET
+INSERT INTO context_entries (user_id, category, key, value)
+VALUES ($4, $1, $2, $3)
+ON CONFLICT (user_id, category, key) DO UPDATE SET
   value = EXCLUDED.value,
   updated_at = now()
-RETURNING id, category, key, value, is_active, created_at, updated_at
+RETURNING id, category, key, value, is_active, created_at, updated_at, user_id
 `
 
 type UpsertContextEntryParams struct {
-	Category string `json:"category"`
-	Key      string `json:"key"`
-	Value    string `json:"value"`
+	Category string      `json:"category"`
+	Key      string      `json:"key"`
+	Value    string      `json:"value"`
+	UserID   pgtype.UUID `json:"user_id"`
 }
 
 func (q *Queries) UpsertContextEntry(ctx context.Context, arg UpsertContextEntryParams) (ContextEntry, error) {
-	row := q.db.QueryRow(ctx, upsertContextEntry, arg.Category, arg.Key, arg.Value)
+	row := q.db.QueryRow(ctx, upsertContextEntry,
+		arg.Category,
+		arg.Key,
+		arg.Value,
+		arg.UserID,
+	)
 	var i ContextEntry
 	err := row.Scan(
 		&i.ID,
@@ -159,6 +186,7 @@ func (q *Queries) UpsertContextEntry(ctx context.Context, arg UpsertContextEntry
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }

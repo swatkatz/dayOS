@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ApolloProvider } from '@apollo/client/react'
-import { client, getToken, setOnUnauth } from './apollo'
-import AuthGate from './components/AuthGate'
+import { SignedIn, SignedOut, useAuth, useClerk } from '@clerk/clerk-react'
+import { client, setTokenGetter, setOnUnauth } from './apollo'
+import SignInPage from './components/SignInPage'
 import Layout from './components/Layout'
 import TodayPage from './pages/TodayPage'
 import BacklogPage from './pages/BacklogPage'
@@ -16,25 +17,25 @@ function requestNotificationPermission() {
   }
 }
 
-export default function App() {
-  const [authed, setAuthed] = useState(() => !!getToken())
-
-  const handleUnauth = useCallback(() => {
-    setAuthed(false)
-  }, [])
+function AuthenticatedApp() {
+  const { getToken } = useAuth()
+  const { signOut } = useClerk()
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    setOnUnauth(handleUnauth)
-  }, [handleUnauth])
+    setTokenGetter(() => getToken())
+    setOnUnauth(() => signOut())
+    setReady(true)
+  }, [getToken, signOut])
 
   useEffect(() => {
-    if (authed) {
+    if (ready) {
       requestNotificationPermission()
     }
-  }, [authed])
+  }, [ready])
 
-  if (!authed) {
-    return <AuthGate onAuth={() => setAuthed(true)} />
+  if (!ready) {
+    return null
   }
 
   return (
@@ -52,5 +53,18 @@ export default function App() {
         </Routes>
       </BrowserRouter>
     </ApolloProvider>
+  )
+}
+
+export default function App() {
+  return (
+    <>
+      <SignedOut>
+        <SignInPage />
+      </SignedOut>
+      <SignedIn>
+        <AuthenticatedApp />
+      </SignedIn>
+    </>
   )
 }

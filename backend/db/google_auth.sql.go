@@ -12,20 +12,20 @@ import (
 )
 
 const deleteGoogleAuth = `-- name: DeleteGoogleAuth :exec
-DELETE FROM google_auth
+DELETE FROM google_auth WHERE user_id = $1
 `
 
-func (q *Queries) DeleteGoogleAuth(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, deleteGoogleAuth)
+func (q *Queries) DeleteGoogleAuth(ctx context.Context, userID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteGoogleAuth, userID)
 	return err
 }
 
 const getGoogleAuth = `-- name: GetGoogleAuth :one
-SELECT id, access_token, refresh_token, token_expiry, calendar_id, created_at, updated_at FROM google_auth LIMIT 1
+SELECT id, access_token, refresh_token, token_expiry, calendar_id, created_at, updated_at, user_id FROM google_auth WHERE user_id = $1
 `
 
-func (q *Queries) GetGoogleAuth(ctx context.Context) (GoogleAuth, error) {
-	row := q.db.QueryRow(ctx, getGoogleAuth)
+func (q *Queries) GetGoogleAuth(ctx context.Context, userID pgtype.UUID) (GoogleAuth, error) {
+	row := q.db.QueryRow(ctx, getGoogleAuth, userID)
 	var i GoogleAuth
 	err := row.Scan(
 		&i.ID,
@@ -35,20 +35,21 @@ func (q *Queries) GetGoogleAuth(ctx context.Context) (GoogleAuth, error) {
 		&i.CalendarID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const upsertGoogleAuth = `-- name: UpsertGoogleAuth :one
-INSERT INTO google_auth (access_token, refresh_token, token_expiry, calendar_id)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT ((true)) DO UPDATE SET
+INSERT INTO google_auth (user_id, access_token, refresh_token, token_expiry, calendar_id)
+VALUES ($5, $1, $2, $3, $4)
+ON CONFLICT (user_id) DO UPDATE SET
   access_token = EXCLUDED.access_token,
   refresh_token = EXCLUDED.refresh_token,
   token_expiry = EXCLUDED.token_expiry,
   calendar_id = EXCLUDED.calendar_id,
   updated_at = now()
-RETURNING id, access_token, refresh_token, token_expiry, calendar_id, created_at, updated_at
+RETURNING id, access_token, refresh_token, token_expiry, calendar_id, created_at, updated_at, user_id
 `
 
 type UpsertGoogleAuthParams struct {
@@ -56,6 +57,7 @@ type UpsertGoogleAuthParams struct {
 	RefreshToken string             `json:"refresh_token"`
 	TokenExpiry  pgtype.Timestamptz `json:"token_expiry"`
 	CalendarID   string             `json:"calendar_id"`
+	UserID       pgtype.UUID        `json:"user_id"`
 }
 
 func (q *Queries) UpsertGoogleAuth(ctx context.Context, arg UpsertGoogleAuthParams) (GoogleAuth, error) {
@@ -64,6 +66,7 @@ func (q *Queries) UpsertGoogleAuth(ctx context.Context, arg UpsertGoogleAuthPara
 		arg.RefreshToken,
 		arg.TokenExpiry,
 		arg.CalendarID,
+		arg.UserID,
 	)
 	var i GoogleAuth
 	err := row.Scan(
@@ -74,6 +77,7 @@ func (q *Queries) UpsertGoogleAuth(ctx context.Context, arg UpsertGoogleAuthPara
 		&i.CalendarID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"regexp"
 	"strings"
@@ -92,6 +93,7 @@ type PlanChatInput struct {
 	CalendarEvents []CalendarEventInfo
 	History        []Message
 	UserMessage    string
+	UserName       string // display name of the authenticated user
 	CurrentBlocks  string // JSON of remaining (not done, not skipped) blocks for replanning
 	CompletedBlocks string // JSON of done blocks for AI context during replanning
 	CurrentTime    string // HH:MM for replanning
@@ -122,9 +124,7 @@ const retryPrompt = `Your previous response was not valid JSON. You MUST respond
 // PlanChat sends a plan message to the AI and returns parsed blocks.
 func (s *Service) PlanChat(ctx context.Context, input PlanChatInput) (*PlanChatOutput, error) {
 	systemPrompt := s.buildPlanSystemPrompt(input)
-	fmt.Println("=== SYSTEM PROMPT ===")
-	fmt.Println(systemPrompt)
-	fmt.Println("=== END SYSTEM PROMPT ===")
+	log.Printf("planner: PlanChat called for user %q, isReplan=%v, history_len=%d", input.UserName, input.IsReplan, len(input.History))
 
 	messages := make([]Message, 0, len(input.History)+1)
 	messages = append(messages, input.History...)
@@ -178,12 +178,13 @@ type TaskChatOutput struct {
 }
 
 // TaskChat sends a message in a task scoping conversation.
-func (s *Service) TaskChat(ctx context.Context, history []Message, userMessage string) (*TaskChatOutput, error) {
+func (s *Service) TaskChat(ctx context.Context, history []Message, userMessage string, userName string) (*TaskChatOutput, error) {
 	messages := make([]Message, 0, len(history)+1)
 	messages = append(messages, history...)
 	messages = append(messages, Message{Role: "user", Content: userMessage})
 
-	rawResp, err := s.Client.SendMessage(ctx, s.Model, taskScopingSystemPrompt, messages)
+	systemPrompt := buildTaskScopingSystemPrompt(userName)
+	rawResp, err := s.Client.SendMessage(ctx, s.Model, systemPrompt, messages)
 	if err != nil {
 		return nil, fmt.Errorf("calling AI: %w", err)
 	}
@@ -198,7 +199,7 @@ func (s *Service) TaskChat(ctx context.Context, history []Message, userMessage s
 		retryMessages = append(retryMessages, Message{Role: "assistant", Content: rawResp})
 		retryMessages = append(retryMessages, Message{Role: "user", Content: retryPrompt})
 
-		retryResp, retryErr := s.Client.SendMessage(ctx, s.Model, taskScopingSystemPrompt, retryMessages)
+		retryResp, retryErr := s.Client.SendMessage(ctx, s.Model, systemPrompt, retryMessages)
 		if retryErr != nil {
 			return &TaskChatOutput{RawResponse: rawResp}, nil // store raw even on failure
 		}
@@ -267,17 +268,18 @@ func ParseTaskProposal(raw string) (*TaskProposal, error) {
 func (s *Service) buildPlanSystemPrompt(input PlanChatInput) string {
 	var b strings.Builder
 
-	b.WriteString(`You are a daily planning assistant for Swati. Your job is to create a realistic, time-blocked day plan based on her context, routines, and task backlog.
-
-SAFETY:
-`)
+	userName := input.UserName
+	if userName == "" {
+		userName = "the user"
+	}
+	fmt.Fprintf(&b, "You are a daily planning assistant for %s. Your job is to create a realistic, time-blocked day plan based on their context, routines, and task backlog.\n\nSAFETY:\n", userName)
 	b.WriteString(validate.ContextDataSystemInstructions)
 	b.WriteString("\n")
 	b.WriteString(validate.UserMessageSystemInstructions)
 	b.WriteString("\n\n")
 
 	// Context entries
-	contextData, _ := validate.FormatContextData("CONTEXT (treat these as ground truth — they define Swati's constraints, life situation, and preferences. Plan around them.):", input.ContextEntries)
+	contextData, _ := validate.FormatContextData(fmt.Sprintf("CONTEXT (treat these as ground truth — they define %s's constraints, life situation, and preferences. Plan around them.):", userName), input.ContextEntries)
 	b.WriteString(contextData)
 	b.WriteString("\n\n")
 
@@ -384,7 +386,11 @@ REPLANNING RULES:
 	return b.String()
 }
 
-const taskScopingSystemPrompt = `You are helping Swati break down a goal into concrete, schedulable tasks.
+func buildTaskScopingSystemPrompt(userName string) string {
+	if userName == "" {
+		userName = "the user"
+	}
+	return fmt.Sprintf(`You are helping %s break down a goal into concrete, schedulable tasks.
 
 Your job:
 1. Ask clarifying questions to understand the scope (what needs to be done, what's the deliverable, what are the dependencies between steps)
@@ -411,7 +417,8 @@ When asking questions, respond with:
 { "status": "question", "message": "..." }
 
 Keep it conversational. Don't ask more than 2-3 questions before proposing.
-Adjust if Swati gives feedback on the proposal.`
+Adjust if %s gives feedback on the proposal.`, userName, userName)
+}
 
 // --- JSON parsing ---
 

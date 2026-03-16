@@ -16,6 +16,8 @@ import (
 	"dayos/planner"
 	"dayos/tz"
 
+	clerk "github.com/clerk/clerk-sdk-go/v2"
+
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/golang-migrate/migrate/v4"
@@ -28,18 +30,15 @@ import (
 var migrations embed.FS
 
 func main() {
-	appSecret := os.Getenv("APP_SECRET")
-	if appSecret == "" {
-		log.Fatal("APP_SECRET environment variable is required")
+	clerkSecretKey := os.Getenv("CLERK_SECRET_KEY")
+	if clerkSecretKey == "" {
+		log.Fatal("CLERK_SECRET_KEY environment variable is required")
 	}
+	clerk.SetKey(clerkSecretKey)
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		log.Fatal("DATABASE_URL is not set")
-	}
-
-	if os.Getenv("ANTHROPIC_API_KEY") == "" {
-		log.Fatal("ANTHROPIC_API_KEY environment variable is required")
 	}
 
 	port := os.Getenv("PORT")
@@ -64,10 +63,14 @@ func main() {
 	}
 	defer pool.Close()
 
-	// Initialize sqlc queries, planner, and GraphQL server
+	// Initialize sqlc queries and user-scoped wrapper
 	queries := db.New(pool)
+	scoped := db.NewScopedQueries(queries)
+
+	// Initialize planner with usage cap decorator
 	aiClient := planner.NewAnthropicClient()
-	plannerSvc := planner.New(aiClient)
+	basePlanner := planner.New(aiClient)
+	plannerSvc := planner.NewWithUserCap(basePlanner, queries, os.Getenv("ANTHROPIC_API_KEY"))
 
 	// Initialize calendar service (optional — works without Google env vars)
 	var calendarSvc graph.CalendarService
@@ -82,7 +85,7 @@ func main() {
 			cache = &calendar.NullCache{}
 		}
 		calendarSvc = &calendar.Service{
-			Store:     queries,
+			Store:     scoped,
 			Cache:     cache,
 			API:       calendar.NewGoogleCalendarAPI(),
 			Refresher: calendar.NewGoogleTokenRefresher(googleClientID, googleClientSecret),
@@ -92,11 +95,11 @@ func main() {
 
 	cfg := graph.Config{
 		Resolvers: &graph.Resolver{
-			RoutineStore:          queries,
-			TaskStore:             queries,
-			ContextStore:          queries,
-			DayPlanStore:          queries,
-			TaskConversationStore: queries,
+			RoutineStore:          scoped,
+			TaskStore:             scoped,
+			ContextStore:          scoped,
+			DayPlanStore:          scoped,
+			TaskConversationStore: scoped,
 			Planner:               plannerSvc,
 			Calendar:              calendarSvc,
 		},
@@ -104,7 +107,7 @@ func main() {
 	cfg.Directives.Validate = graph.ValidateDirective()
 	srv := handler.NewDefaultServer(graph.NewExecutableSchema(cfg))
 
-	authMiddleware := auth.RequireAuth(appSecret)
+	authMiddleware := auth.RequireClerk(queries)
 	corsMiddleware := cors.AllowFrontend(frontendURL)
 
 	if os.Getenv("RAILWAY_ENVIRONMENT") == "" {

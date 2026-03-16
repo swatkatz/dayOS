@@ -12,20 +12,30 @@ import (
 )
 
 const deleteRoutine = `-- name: DeleteRoutine :exec
-DELETE FROM routines WHERE id = $1
+DELETE FROM routines WHERE id = $1 AND user_id = $2
 `
 
-func (q *Queries) DeleteRoutine(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, deleteRoutine, id)
+type DeleteRoutineParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) DeleteRoutine(ctx context.Context, arg DeleteRoutineParams) error {
+	_, err := q.db.Exec(ctx, deleteRoutine, arg.ID, arg.UserID)
 	return err
 }
 
 const getRoutine = `-- name: GetRoutine :one
-SELECT id, title, category, frequency, days_of_week, preferred_time_of_day, preferred_duration_min, notes, is_active, created_at, preferred_exact_time FROM routines WHERE id = $1
+SELECT id, title, category, frequency, days_of_week, preferred_time_of_day, preferred_duration_min, notes, is_active, created_at, preferred_exact_time, user_id FROM routines WHERE id = $1 AND user_id = $2
 `
 
-func (q *Queries) GetRoutine(ctx context.Context, id pgtype.UUID) (Routine, error) {
-	row := q.db.QueryRow(ctx, getRoutine, id)
+type GetRoutineParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetRoutine(ctx context.Context, arg GetRoutineParams) (Routine, error) {
+	row := q.db.QueryRow(ctx, getRoutine, arg.ID, arg.UserID)
 	var i Routine
 	err := row.Scan(
 		&i.ID,
@@ -39,18 +49,25 @@ func (q *Queries) GetRoutine(ctx context.Context, id pgtype.UUID) (Routine, erro
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.PreferredExactTime,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const listRoutines = `-- name: ListRoutines :many
-SELECT id, title, category, frequency, days_of_week, preferred_time_of_day, preferred_duration_min, notes, is_active, created_at, preferred_exact_time FROM routines
-WHERE ($1::BOOLEAN IS NULL OR $1 = false OR is_active = true)
+SELECT id, title, category, frequency, days_of_week, preferred_time_of_day, preferred_duration_min, notes, is_active, created_at, preferred_exact_time, user_id FROM routines
+WHERE user_id = $1
+  AND ($2::BOOLEAN IS NULL OR $2 = false OR is_active = true)
 ORDER BY created_at
 `
 
-func (q *Queries) ListRoutines(ctx context.Context, activeOnly *bool) ([]Routine, error) {
-	rows, err := q.db.Query(ctx, listRoutines, activeOnly)
+type ListRoutinesParams struct {
+	UserID     pgtype.UUID `json:"user_id"`
+	ActiveOnly *bool       `json:"active_only"`
+}
+
+func (q *Queries) ListRoutines(ctx context.Context, arg ListRoutinesParams) ([]Routine, error) {
+	rows, err := q.db.Query(ctx, listRoutines, arg.UserID, arg.ActiveOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -70,6 +87,7 @@ func (q *Queries) ListRoutines(ctx context.Context, activeOnly *bool) ([]Routine
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.PreferredExactTime,
+			&i.UserID,
 		); err != nil {
 			return nil, err
 		}
@@ -82,20 +100,26 @@ func (q *Queries) ListRoutines(ctx context.Context, activeOnly *bool) ([]Routine
 }
 
 const listRoutinesForDay = `-- name: ListRoutinesForDay :many
-SELECT id, title, category, frequency, days_of_week, preferred_time_of_day, preferred_duration_min, notes, is_active, created_at, preferred_exact_time FROM routines
-WHERE is_active = true
+SELECT id, title, category, frequency, days_of_week, preferred_time_of_day, preferred_duration_min, notes, is_active, created_at, preferred_exact_time, user_id FROM routines
+WHERE user_id = $1
+  AND is_active = true
   AND (
     LOWER(frequency) = 'daily'
-    OR (LOWER(frequency) = 'weekdays' AND $1::INT BETWEEN 1 AND 5)
-    OR (LOWER(frequency) = 'weekly' AND $1::INT = ANY(days_of_week))
-    OR (LOWER(frequency) = 'custom' AND $1::INT = ANY(days_of_week))
+    OR (LOWER(frequency) = 'weekdays' AND $2::INT BETWEEN 1 AND 5)
+    OR (LOWER(frequency) = 'weekly' AND $2::INT = ANY(days_of_week))
+    OR (LOWER(frequency) = 'custom' AND $2::INT = ANY(days_of_week))
   )
 ORDER BY preferred_exact_time NULLS LAST, preferred_time_of_day, title
 `
 
+type ListRoutinesForDayParams struct {
+	UserID    pgtype.UUID `json:"user_id"`
+	DayOfWeek int32       `json:"day_of_week"`
+}
+
 // Used by planner: active routines that apply to a given day-of-week
-func (q *Queries) ListRoutinesForDay(ctx context.Context, dollar_1 int32) ([]Routine, error) {
-	rows, err := q.db.Query(ctx, listRoutinesForDay, dollar_1)
+func (q *Queries) ListRoutinesForDay(ctx context.Context, arg ListRoutinesForDayParams) ([]Routine, error) {
+	rows, err := q.db.Query(ctx, listRoutinesForDay, arg.UserID, arg.DayOfWeek)
 	if err != nil {
 		return nil, err
 	}
@@ -115,6 +139,7 @@ func (q *Queries) ListRoutinesForDay(ctx context.Context, dollar_1 int32) ([]Rou
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.PreferredExactTime,
+			&i.UserID,
 		); err != nil {
 			return nil, err
 		}
@@ -127,7 +152,7 @@ func (q *Queries) ListRoutinesForDay(ctx context.Context, dollar_1 int32) ([]Rou
 }
 
 const upsertRoutine = `-- name: UpsertRoutine :one
-INSERT INTO routines (id, title, category, frequency, days_of_week,
+INSERT INTO routines (id, user_id, title, category, frequency, days_of_week,
   preferred_time_of_day, preferred_duration_min, preferred_exact_time, notes, is_active)
 VALUES (
   COALESCE($1::UUID, gen_random_uuid()),
@@ -139,7 +164,8 @@ VALUES (
   $7,
   $8,
   $9,
-  COALESCE($10::BOOLEAN, true)
+  $10,
+  COALESCE($11::BOOLEAN, true)
 )
 ON CONFLICT (id) DO UPDATE SET
   title = EXCLUDED.title,
@@ -151,11 +177,12 @@ ON CONFLICT (id) DO UPDATE SET
   preferred_exact_time = EXCLUDED.preferred_exact_time,
   notes = EXCLUDED.notes,
   is_active = EXCLUDED.is_active
-RETURNING id, title, category, frequency, days_of_week, preferred_time_of_day, preferred_duration_min, notes, is_active, created_at, preferred_exact_time
+RETURNING id, title, category, frequency, days_of_week, preferred_time_of_day, preferred_duration_min, notes, is_active, created_at, preferred_exact_time, user_id
 `
 
 type UpsertRoutineParams struct {
 	ID                   pgtype.UUID `json:"id"`
+	UserID               pgtype.UUID `json:"user_id"`
 	Title                string      `json:"title"`
 	Category             string      `json:"category"`
 	Frequency            string      `json:"frequency"`
@@ -170,6 +197,7 @@ type UpsertRoutineParams struct {
 func (q *Queries) UpsertRoutine(ctx context.Context, arg UpsertRoutineParams) (Routine, error) {
 	row := q.db.QueryRow(ctx, upsertRoutine,
 		arg.ID,
+		arg.UserID,
 		arg.Title,
 		arg.Category,
 		arg.Frequency,
@@ -193,6 +221,7 @@ func (q *Queries) UpsertRoutine(ctx context.Context, arg UpsertRoutineParams) (R
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.PreferredExactTime,
+		&i.UserID,
 	)
 	return i, err
 }

@@ -696,7 +696,7 @@ func (m *mockPlanner) PlanChat(ctx context.Context, input planner.PlanChatInput)
 	}, nil
 }
 
-func (m *mockPlanner) TaskChat(ctx context.Context, history []planner.Message, userMessage string) (*planner.TaskChatOutput, error) {
+func (m *mockPlanner) TaskChat(ctx context.Context, history []planner.Message, userMessage string, userName string) (*planner.TaskChatOutput, error) {
 	if m.taskChatFn != nil {
 		return m.taskChatFn(ctx, history, userMessage)
 	}
