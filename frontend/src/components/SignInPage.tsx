@@ -28,6 +28,9 @@ const clerkAppearance = {
     identityPreviewEditButton: { color: '#c5a55a' },
     formFieldAction: { color: '#c5a55a' },
     alertText: { color: '#e8e6e1' },
+    otpCodeFieldInput: { backgroundColor: '#2a2a2e', color: '#e8e6e1', border: '1px solid #444' },
+    otpCodeField: { color: '#e8e6e1' },
+    formResendCodeLink: { color: '#c5a55a' },
     footer: { '& span': { color: '#a0a0a0' }, '& a': { color: '#c5a55a' } },
   },
 }
