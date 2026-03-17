@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"dayos/db"
@@ -24,10 +25,30 @@ func (r *mutationResolver) buildPlanChatInput(ctx context.Context, plan db.DayPl
 		userName = u.DisplayName
 	}
 
+	// Compute date label and whether this is a future plan.
+	// planDate arrives as UTC midnight from the Date scalar — re-interpret in user's timezone
+	// so day comparisons are correct for all timezones.
+	userNow := time.Now().In(tz.FromContext(ctx))
+	userToday := time.Date(userNow.Year(), userNow.Month(), userNow.Day(), 0, 0, 0, 0, userNow.Location())
+	planDateLocal := planDate.In(userNow.Location())
+	planDay := time.Date(planDateLocal.Year(), planDateLocal.Month(), planDateLocal.Day(), 0, 0, 0, 0, userNow.Location())
+	isFuturePlan := planDay.After(userToday)
+
+	var planDateLabel string
+	switch {
+	case planDay.Equal(userToday):
+		planDateLabel = fmt.Sprintf("TODAY (%s, %s)", planDay.Weekday(), planDay.Format("January 2"))
+	case planDay.Equal(userToday.AddDate(0, 0, 1)):
+		planDateLabel = fmt.Sprintf("TOMORROW (%s, %s)", planDay.Weekday(), planDay.Format("January 2"))
+	default:
+		planDateLabel = strings.ToUpper(planDay.Format("Monday, January 2"))
+	}
+
 	input := planner.PlanChatInput{
-		UserMessage: userMessage,
-		UserName:    userName,
-		IsReplan:    isReplan,
+		UserMessage:   userMessage,
+		UserName:      userName,
+		IsReplan:      isReplan,
+		PlanDateLabel: planDateLabel,
 	}
 
 	// Gather active context entries
@@ -160,7 +181,11 @@ func (r *mutationResolver) buildPlanChatInput(ctx context.Context, plan db.DayPl
 
 	// For replanning, split blocks into done/skipped/remaining so the AI only replans what's needed
 	if isReplan {
-		input.CurrentTime = time.Now().In(tz.FromContext(ctx)).Format("15:04")
+		// Only inject current wall-clock time when replanning today's plan.
+		// For a future date, current time is irrelevant — the AI plans the full day.
+		if !isFuturePlan {
+			input.CurrentTime = userNow.Format("15:04")
+		}
 
 		var allBlocks []json.RawMessage
 		if err := json.Unmarshal(plan.Blocks, &allBlocks); err == nil {

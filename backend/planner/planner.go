@@ -98,6 +98,7 @@ type PlanChatInput struct {
 	CompletedBlocks string // JSON of done blocks for AI context during replanning
 	CurrentTime    string // HH:MM for replanning
 	IsReplan       bool
+	PlanDateLabel  string // e.g. "TODAY (Tuesday, March 17)", "TOMORROW (Wednesday, March 18)"
 }
 
 // Block represents a time block in a day plan, as returned by the AI.
@@ -272,11 +273,21 @@ func (s *Service) buildPlanSystemPrompt(input PlanChatInput) string {
 	if userName == "" {
 		userName = "the user"
 	}
+
+	// Default plan date label for backward compatibility
+	dateLabel := input.PlanDateLabel
+	if dateLabel == "" {
+		dateLabel = "TODAY'S"
+	}
+
 	fmt.Fprintf(&b, "You are a daily planning assistant for %s. Your job is to create a realistic, time-blocked day plan based on their context, routines, and task backlog.\n\nSAFETY:\n", userName)
 	b.WriteString(validate.ContextDataSystemInstructions)
 	b.WriteString("\n")
 	b.WriteString(validate.UserMessageSystemInstructions)
 	b.WriteString("\n\n")
+
+	// Plan date
+	fmt.Fprintf(&b, "PLAN DATE: %s\n\n", dateLabel)
 
 	// Context entries
 	contextData, _ := validate.FormatContextData(fmt.Sprintf("CONTEXT (treat these as ground truth — they define %s's constraints, life situation, and preferences. Plan around them.):", userName), input.ContextEntries)
@@ -295,7 +306,7 @@ func (s *Service) buildPlanSystemPrompt(input PlanChatInput) string {
 			}
 		}
 		if len(timed) > 0 {
-			timedData, _ := validate.FormatContextData("TODAY'S CALENDAR EVENTS (fixed — do NOT move, overlap, or reschedule these):", timed)
+			timedData, _ := validate.FormatContextData(fmt.Sprintf("%s CALENDAR EVENTS (fixed — do NOT move, overlap, or reschedule these):", dateLabel), timed)
 			b.WriteString(timedData)
 			b.WriteString("\n\n")
 		}
@@ -314,7 +325,7 @@ func (s *Service) buildPlanSystemPrompt(input PlanChatInput) string {
 	}
 
 	// Routines
-	routineData, _ := validate.FormatContextData("TODAY'S ROUTINES — EVERY routine below MUST appear as a block in your plan. Use the routine_id from each entry as the block's routine_id. Routines with exact_time MUST be scheduled at that exact time. Routines with preferred_time are flexible but still mandatory to include:", input.Routines)
+	routineData, _ := validate.FormatContextData(fmt.Sprintf("%s ROUTINES — EVERY routine below MUST appear as a block in your plan. Use the routine_id from each entry as the block's routine_id. Routines with exact_time MUST be scheduled at that exact time. Routines with preferred_time are flexible but still mandatory to include:", dateLabel), input.Routines)
 	b.WriteString(routineData)
 	b.WriteString("\n\n")
 
@@ -348,8 +359,13 @@ PLANNING RULES:
 - Be SPECIFIC in block titles (e.g., "Meta LC: Coin Change II — bottom-up DP" not "Interview prep").
 - Don't schedule more than is realistic given the energy constraints in CONTEXT and what the user tells you about how they're feeling today.
 - A task with remaining_minutes > block duration CAN be scheduled — schedule what fits today, the rest goes on subsequent days.
-- Never schedule anything in a past time slot.
+`)
+	// Only include past-time-slot rule for today's plans (CurrentTime is set only for today)
+	if input.CurrentTime != "" {
+		b.WriteString("- Never schedule anything in a past time slot.\n")
+	}
 
+	b.WriteString(`
 CATEGORIES (use exactly one per block):
 - job: paid work, meetings, deliverables
 - interview: interview prep, leetcode, system design
@@ -365,7 +381,7 @@ Each element: { "id": "uuid-v4", "time": "HH:MM", "duration": 60, "title": "..."
 
 	// Replanning context
 	if input.IsReplan {
-		b.WriteString(fmt.Sprintf(`
+		fmt.Fprintf(&b, `
 
 REPLANNING CONTEXT:
 These blocks are already COMPLETED — do not include them in your response:
@@ -373,14 +389,22 @@ These blocks are already COMPLETED — do not include them in your response:
 
 These are the remaining unfinished blocks to reschedule:
 %s
+`, input.CompletedBlocks, input.CurrentBlocks)
 
-Current time: %s
+		if input.CurrentTime != "" {
+			fmt.Fprintf(&b, `Current time: %s
 
 REPLANNING RULES:
 - Return ONLY new/rescheduled blocks from current time onward.
 - Do NOT include completed or skipped blocks in your response.
 - All blocks must have "time" >= current time.
-- The user is asking to adjust the remaining schedule.`, input.CompletedBlocks, input.CurrentBlocks, input.CurrentTime))
+- The user is asking to adjust the remaining schedule.`, input.CurrentTime)
+		} else {
+			b.WriteString(`REPLANNING RULES:
+- Return ONLY new/rescheduled blocks for the full day.
+- Do NOT include completed or skipped blocks in your response.
+- The user is asking to adjust the schedule.`)
+		}
 	}
 
 	return b.String()

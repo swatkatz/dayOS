@@ -13,6 +13,7 @@ interface Props {
   loading: boolean
   error?: string | null
   isFirstMessage: boolean
+  isFuture?: boolean
 }
 
 function formatAssistantContent(content: string): string {
@@ -31,7 +32,7 @@ function formatAssistantContent(content: string): string {
   return content
 }
 
-export default function ChatPanel({ messages, onSend, loading, error, isFirstMessage }: Props) {
+export default function ChatPanel({ messages, onSend, loading, error, isFirstMessage, isFuture }: Props) {
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -73,9 +74,11 @@ export default function ChatPanel({ messages, onSend, loading, error, isFirstMes
         {messages.length === 0 && !loading && (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <div className="text-4xl mb-4">☀️</div>
-            <h2 className="text-lg font-semibold text-text-primary mb-2">Plan your day</h2>
+            <h2 className="text-lg font-semibold text-text-primary mb-2">{isFuture ? 'Plan your tomorrow' : 'Plan your day'}</h2>
             <p className="text-text-secondary text-sm max-w-xs leading-relaxed">
-              Tell me about your priorities and I'll create a schedule. Mention meetings, deadlines, or energy levels.
+              {isFuture
+                ? "Tell me what's on your plate tomorrow and I'll draft a schedule."
+                : "Tell me about your priorities and I'll create a schedule. Mention meetings, deadlines, or energy levels."}
             </p>
           </div>
         )}
@@ -129,7 +132,7 @@ export default function ChatPanel({ messages, onSend, loading, error, isFirstMes
             onKeyDown={handleKeyDown}
             disabled={loading}
             rows={1}
-            placeholder={isFirstMessage ? 'Describe your day...' : 'Adjust the plan...'}
+            placeholder={isFirstMessage ? (isFuture ? 'Plan your tomorrow...' : 'Describe your day...') : 'Adjust the plan...'}
             className="flex-1 bg-bg-surface border border-border-default rounded-xl px-4 py-2.5 text-text-primary text-[15px] placeholder:text-text-secondary focus:border-accent focus:ring-1 focus:ring-accent outline-none disabled:opacity-50 resize-none overflow-hidden"
           />
           <button

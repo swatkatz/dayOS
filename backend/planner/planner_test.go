@@ -431,3 +431,128 @@ func TestSystemPromptOmitsCalendarWhenNotConnected(t *testing.T) {
 		t.Error("should not include CALENDAR RULES when no events")
 	}
 }
+
+// --- Tomorrow Planning tests ---
+
+// Test anchor 1: PlanDateLabel appears in prompt labels
+func TestSystemPromptTomorrowDateLabel(t *testing.T) {
+	svc := &Service{Client: &mockAIClient{}, Model: "test"}
+	input := PlanChatInput{
+		PlanDateLabel: "TOMORROW (Thursday, March 18)",
+		CalendarEvents: []CalendarEventInfo{
+			{Title: "Morning standup", StartTime: "09:00", Duration: 30},
+		},
+		Routines: []RoutineInfo{
+			{RoutineID: "r1", Title: "Exercise", Category: "exercise", DurationMin: 45, PreferredTime: "morning"},
+		},
+		UserMessage: "Plan tomorrow",
+	}
+	prompt := svc.buildPlanSystemPrompt(input)
+
+	if !strings.Contains(prompt, "PLAN DATE: TOMORROW (Thursday, March 18)") {
+		t.Error("expected PLAN DATE label in prompt")
+	}
+	if !strings.Contains(prompt, "TOMORROW (Thursday, March 18) CALENDAR EVENTS") {
+		t.Error("expected date label in calendar events header")
+	}
+	if !strings.Contains(prompt, "TOMORROW (Thursday, March 18) ROUTINES") {
+		t.Error("expected date label in routines header")
+	}
+}
+
+// Test anchor 2: empty PlanDateLabel defaults to TODAY'S
+func TestSystemPromptDefaultDateLabel(t *testing.T) {
+	svc := &Service{Client: &mockAIClient{}, Model: "test"}
+	input := PlanChatInput{
+		CalendarEvents: []CalendarEventInfo{
+			{Title: "Meeting", StartTime: "10:00", Duration: 60},
+		},
+		UserMessage: "Plan my day",
+	}
+	prompt := svc.buildPlanSystemPrompt(input)
+
+	if !strings.Contains(prompt, "TODAY'S CALENDAR EVENTS") {
+		t.Error("expected TODAY'S as default label for calendar events")
+	}
+	if !strings.Contains(prompt, "TODAY'S ROUTINES") {
+		t.Error("expected TODAY'S as default label for routines")
+	}
+}
+
+// Test anchor 3: no past-time-slot rule when CurrentTime is empty (future plan)
+func TestSystemPromptFuturePlanOmitsPastTimeRule(t *testing.T) {
+	svc := &Service{Client: &mockAIClient{}, Model: "test"}
+	input := PlanChatInput{
+		PlanDateLabel: "TOMORROW (Thursday, March 18)",
+		UserMessage:   "Plan tomorrow",
+		// CurrentTime is empty — future plan
+	}
+	prompt := svc.buildPlanSystemPrompt(input)
+
+	if strings.Contains(prompt, "Never schedule anything in a past time slot") {
+		t.Error("future plan should NOT contain past-time-slot rule")
+	}
+}
+
+// Test anchor 4: past-time-slot rule present when CurrentTime is set (today)
+func TestSystemPromptTodayIncludesPastTimeRule(t *testing.T) {
+	svc := &Service{Client: &mockAIClient{}, Model: "test"}
+	input := PlanChatInput{
+		PlanDateLabel: "TODAY (Wednesday, March 17)",
+		CurrentTime:   "14:30",
+		UserMessage:   "Plan my day",
+	}
+	prompt := svc.buildPlanSystemPrompt(input)
+
+	if !strings.Contains(prompt, "Never schedule anything in a past time slot") {
+		t.Error("today's plan should contain past-time-slot rule")
+	}
+}
+
+// Test anchor 5: future-date replan omits CurrentTime and uses full-day rules
+func TestSystemPromptFutureReplanFullDay(t *testing.T) {
+	svc := &Service{Client: &mockAIClient{}, Model: "test"}
+	input := PlanChatInput{
+		PlanDateLabel:   "TOMORROW (Thursday, March 18)",
+		IsReplan:        true,
+		CurrentBlocks:   `[{"id":"1","time":"09:00"}]`,
+		CompletedBlocks: `[{"id":"2","time":"07:00"}]`,
+		// CurrentTime is empty — future plan
+		UserMessage: "Reschedule tomorrow",
+	}
+	prompt := svc.buildPlanSystemPrompt(input)
+
+	if !strings.Contains(prompt, "REPLANNING CONTEXT") {
+		t.Error("expected REPLANNING CONTEXT section")
+	}
+	if strings.Contains(prompt, "Current time:") {
+		t.Error("future replan should NOT contain Current time")
+	}
+	if !strings.Contains(prompt, "Return ONLY new/rescheduled blocks for the full day") {
+		t.Error("expected full-day replanning rule for future plan")
+	}
+	if strings.Contains(prompt, `"time" >= current time`) {
+		t.Error("future replan should NOT contain time-gating rule")
+	}
+}
+
+// Test anchor 6: today's replan includes CurrentTime and time-gated rules
+func TestSystemPromptTodayReplanWithCurrentTime(t *testing.T) {
+	svc := &Service{Client: &mockAIClient{}, Model: "test"}
+	input := PlanChatInput{
+		PlanDateLabel:   "TODAY (Wednesday, March 17)",
+		IsReplan:        true,
+		CurrentBlocks:   `[{"id":"1","time":"14:00"}]`,
+		CompletedBlocks: `[{"id":"2","time":"09:00"}]`,
+		CurrentTime:     "10:00",
+		UserMessage:     "Replan from now",
+	}
+	prompt := svc.buildPlanSystemPrompt(input)
+
+	if !strings.Contains(prompt, "Current time: 10:00") {
+		t.Error("expected Current time in today's replan")
+	}
+	if !strings.Contains(prompt, `"time" >= current time`) {
+		t.Error("expected time-gating rule in today's replan")
+	}
+}

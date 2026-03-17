@@ -23,9 +23,10 @@ interface Props {
   onComplete: (blockId: string) => void
   onUpdateDuration: (blockId: string, duration: number) => void
   onReplan: () => void
+  readOnly?: boolean
 }
 
-export default function AcceptedPlanView({ blocks, onSkip, onUnskip, onComplete, onUpdateDuration, onReplan }: Props) {
+export default function AcceptedPlanView({ blocks, onSkip, onUnskip, onComplete, onUpdateDuration, onReplan, readOnly }: Props) {
   const total = blocks.length
   const doneCount = blocks.filter((b) => b.done).length
   const skippedCount = blocks.filter((b) => b.skipped).length
@@ -36,30 +37,35 @@ export default function AcceptedPlanView({ blocks, onSkip, onUnskip, onComplete,
   const [showConfetti, setShowConfetti] = useState(false)
 
   const handleComplete = useCallback((blockId: string) => {
+    if (readOnly) return
     setShowConfetti(true)
     onComplete(blockId)
-  }, [onComplete])
+  }, [onComplete, readOnly])
 
   return (
     <div className="max-w-2xl mx-auto">
-      {showConfetti && (
+      {!readOnly && showConfetti && (
         <Confetti onDone={() => setShowConfetti(false)} />
       )}
 
       {/* Progress header */}
       <div className="mb-4 md:mb-6">
         <div className="flex items-center justify-between mb-2">
-          <h1 className="text-lg md:text-xl font-semibold text-text-primary">Today's Plan</h1>
-          <span className="text-sm text-text-secondary">
-            {doneCount}/{activeCount} done
-          </span>
+          <h1 className="text-lg md:text-xl font-semibold text-text-primary">{readOnly ? "Tomorrow's Plan" : "Today's Plan"}</h1>
+          {!readOnly && (
+            <span className="text-sm text-text-secondary">
+              {doneCount}/{activeCount} done
+            </span>
+          )}
         </div>
-        <div className="h-1 bg-bg-surface rounded-full overflow-hidden">
-          <div
-            className="h-full bg-accent rounded-full transition-all duration-500"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
+        {!readOnly && (
+          <div className="h-1 bg-bg-surface rounded-full overflow-hidden">
+            <div
+              className="h-full bg-accent rounded-full transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        )}
         <p className="text-text-secondary text-xs mt-2 italic">{motivation}</p>
       </div>
 
@@ -70,16 +76,19 @@ export default function AcceptedPlanView({ blocks, onSkip, onUnskip, onComplete,
           onUnskip={onUnskip}
           onComplete={handleComplete}
           onUpdateDuration={onUpdateDuration}
-          showNow
+          showNow={!readOnly}
+          readOnly={readOnly}
         />
       </div>
 
-      <button
-        onClick={onReplan}
-        className="w-full py-2.5 px-4 rounded-xl border border-border-default text-text-secondary hover:text-text-primary hover:border-accent active:scale-[0.99] transition-all"
-      >
-        Something came up
-      </button>
+      {!readOnly && (
+        <button
+          onClick={onReplan}
+          className="w-full py-2.5 px-4 rounded-xl border border-border-default text-text-secondary hover:text-text-primary hover:border-accent active:scale-[0.99] transition-all"
+        >
+          Something came up
+        </button>
+      )}
     </div>
   )
 }

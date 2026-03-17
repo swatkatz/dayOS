@@ -68,13 +68,27 @@ interface BlockMutationData {
   updateBlock?: DayPlan
 }
 
-function todayDate(): string {
-  const d = new Date()
+function formatDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+function todayDate(): string {
+  return formatDate(new Date())
+}
+
+function tomorrowDate(): string {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  return formatDate(d)
+}
+
 export default function TodayPage() {
-  const date = useMemo(todayDate, [])
+  const [selectedDay, setSelectedDay] = useState<'today' | 'tomorrow'>('today')
+  const today = useMemo(todayDate, [])
+  const tomorrow = useMemo(tomorrowDate, [])
+  const date = selectedDay === 'today' ? today : tomorrow
+  const isFuture = selectedDay === 'tomorrow'
+
   const [showReview, setShowReview] = useState(true)
   const [replanning, setReplanning] = useState(false)
   const [chatError, setChatError] = useState<string | null>(null)
@@ -125,10 +139,12 @@ export default function TodayPage() {
   const messages = plan?.messages ?? []
   const isAccepted = plan?.status === 'ACCEPTED'
 
-  useNotifications(blocks, isAccepted && !replanning)
+  useNotifications(blocks, isAccepted && !replanning, !isFuture)
 
-  // Track calendar version for replan detection
+  // Track calendar version for replan detection (only for today's plan)
   useEffect(() => {
+    if (isFuture) return
+
     const calVersion = calendarData?.calendarEvents?.version
     if (!calVersion || !calendarData?.calendarEvents?.connected) return
 
@@ -141,7 +157,7 @@ export default function TodayPage() {
     if (isAccepted && planCalendarVersion !== null && calVersion !== planCalendarVersion) {
       setShowReplanBanner(true)
     }
-  }, [calendarData, isAccepted, planCalendarVersion])
+  }, [calendarData, isAccepted, planCalendarVersion, isFuture])
 
   // Check carry-over: skipped blocks from most recent past plan
   const pastPlan = useMemo(() => {
@@ -154,7 +170,7 @@ export default function TodayPage() {
     return pastPlan.blocks.filter((b) => b.skipped && b.taskId)
   }, [pastPlan])
 
-  const needsReview = showReview && skippedBlocks.length > 0
+  const needsReview = !isFuture && showReview && skippedBlocks.length > 0
 
   // Handlers
   const handleSendMessage = async (message: string) => {
@@ -310,9 +326,40 @@ export default function TodayPage() {
   // Mobile tab state for draft/replan view
   const [mobileTab, setMobileTab] = useState<'chat' | 'plan'>('chat')
 
+  // Day switch handler — resets transient state
+  const handleDaySwitch = (day: 'today' | 'tomorrow') => {
+    setSelectedDay(day)
+    setReplanning(false)
+    setShowReplanBanner(false)
+    setPlanCalendarVersion(null)
+    setMobileTab('chat')
+    setChatError(null)
+    setPendingMessage(null)
+    setShowReview(true)
+  }
+
+  const DayToggle = (
+    <div className="flex gap-1 p-1 bg-bg-surface rounded-xl w-fit mx-auto">
+      {(['today', 'tomorrow'] as const).map((day) => (
+        <button
+          key={day}
+          onClick={() => handleDaySwitch(day)}
+          className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+            selectedDay === day
+              ? 'bg-accent text-[#0f0f11]'
+              : 'text-text-secondary hover:text-text-primary'
+          }`}
+        >
+          {day === 'today' ? 'Today' : 'Tomorrow'}
+        </button>
+      ))}
+    </div>
+  )
+
   if (planLoading) {
     return (
       <div className="flex flex-col gap-3 max-w-2xl mx-auto pt-4">
+        <div className="flex justify-center mb-2">{DayToggle}</div>
         <div className="skeleton h-6 w-40" />
         <div className="skeleton h-20 w-full" />
         <div className="skeleton h-20 w-full" />
@@ -365,8 +412,9 @@ export default function TodayPage() {
   if (isAccepted && !replanning) {
     return (
       <div>
+        <div className="flex justify-center pt-4 mb-2">{DayToggle}</div>
         {showReplanBanner && (
-          <div className="px-4 pt-4">
+          <div className="px-4">
             <ReplanBanner onReplan={handleCalendarReplan} onDismiss={handleDismissReplanBanner} />
           </div>
         )}
@@ -377,6 +425,7 @@ export default function TodayPage() {
           onComplete={handleComplete}
           onUpdateDuration={handleUpdateDuration}
           onReplan={() => setReplanning(true)}
+          readOnly={isFuture}
         />
       </div>
     )
@@ -389,46 +438,54 @@ export default function TodayPage() {
   const isFirstMessage = messages.length === 0
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-4rem)] gap-0">
-      {/* Mobile tab switcher */}
-      <div className="flex md:hidden border-b border-border-default">
-        <button
-          onClick={() => setMobileTab('chat')}
-          className={`flex-1 py-3 text-sm font-medium transition-colors ${
-            mobileTab === 'chat'
-              ? 'text-accent border-b-2 border-accent'
-              : 'text-text-secondary'
-          }`}
-        >
-          Chat
-        </button>
-        <button
-          onClick={() => setMobileTab('plan')}
-          className={`flex-1 py-3 text-sm font-medium transition-colors relative ${
-            mobileTab === 'plan'
-              ? 'text-accent border-b-2 border-accent'
-              : 'text-text-secondary'
-          }`}
-        >
-          Plan
-          {blocks.length > 0 && mobileTab !== 'plan' && (
-            <span className="absolute top-2 right-[calc(50%-24px)] w-2 h-2 rounded-full bg-accent" />
-          )}
-        </button>
+    <div className="flex flex-col h-[calc(100vh-4rem)]">
+      {/* Day toggle */}
+      <div className="flex justify-center pt-3 pb-2 border-b border-border-default bg-bg-primary shrink-0">
+        {DayToggle}
       </div>
 
-      {/* Desktop: side-by-side. Mobile: tab content */}
-      <div className={`md:w-1/2 md:h-full border-r border-border-default ${mobileTab === 'chat' ? 'flex-1' : 'hidden'} md:block`}>
-        <ChatPanel
-          messages={displayMessages}
-          onSend={handleSendMessage}
-          loading={sending}
-          error={chatError}
-          isFirstMessage={isFirstMessage}
-        />
-      </div>
-      <div className={`md:w-1/2 md:h-full ${mobileTab === 'plan' ? 'flex-1' : 'hidden'} md:block`}>
-        <PlanPreview blocks={blocks} onAccept={handleAccept} accepting={accepting} />
+      <div className="flex flex-col md:flex-row flex-1 min-h-0 gap-0">
+        {/* Mobile tab switcher */}
+        <div className="flex md:hidden border-b border-border-default">
+          <button
+            onClick={() => setMobileTab('chat')}
+            className={`flex-1 py-3 text-sm font-medium transition-colors ${
+              mobileTab === 'chat'
+                ? 'text-accent border-b-2 border-accent'
+                : 'text-text-secondary'
+            }`}
+          >
+            Chat
+          </button>
+          <button
+            onClick={() => setMobileTab('plan')}
+            className={`flex-1 py-3 text-sm font-medium transition-colors relative ${
+              mobileTab === 'plan'
+                ? 'text-accent border-b-2 border-accent'
+                : 'text-text-secondary'
+            }`}
+          >
+            Plan
+            {blocks.length > 0 && mobileTab !== 'plan' && (
+              <span className="absolute top-2 right-[calc(50%-24px)] w-2 h-2 rounded-full bg-accent" />
+            )}
+          </button>
+        </div>
+
+        {/* Desktop: side-by-side. Mobile: tab content */}
+        <div className={`md:w-1/2 md:h-full border-r border-border-default ${mobileTab === 'chat' ? 'flex-1' : 'hidden'} md:block`}>
+          <ChatPanel
+            messages={displayMessages}
+            onSend={handleSendMessage}
+            loading={sending}
+            error={chatError}
+            isFirstMessage={isFirstMessage}
+            isFuture={isFuture}
+          />
+        </div>
+        <div className={`md:w-1/2 md:h-full ${mobileTab === 'plan' ? 'flex-1' : 'hidden'} md:block`}>
+          <PlanPreview blocks={blocks} onAccept={handleAccept} accepting={accepting} />
+        </div>
       </div>
     </div>
   )

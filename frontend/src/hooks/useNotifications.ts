@@ -10,7 +10,7 @@ interface Block {
 
 const PERMISSION_KEY = 'dayos_notif_denied'
 
-export function useNotifications(blocks: Block[], isAccepted: boolean) {
+export function useNotifications(blocks: Block[], isAccepted: boolean, enabled = true) {
   const timeoutIds = useRef<number[]>([])
 
   const clearAll = useCallback(() => {
@@ -19,6 +19,7 @@ export function useNotifications(blocks: Block[], isAccepted: boolean) {
   }, [])
 
   useEffect(() => {
+    if (!enabled) return
     if (typeof Notification === 'undefined') return
     if (Notification.permission === 'default' && !localStorage.getItem(PERMISSION_KEY)) {
       Notification.requestPermission().then((perm) => {
@@ -27,12 +28,13 @@ export function useNotifications(blocks: Block[], isAccepted: boolean) {
         }
       })
     }
-  }, [])
+  }, [enabled])
 
   useEffect(() => {
     clearAll()
 
-    if (!isAccepted || Notification.permission !== 'granted') return
+    if (typeof Notification === 'undefined') return
+    if (!enabled || !isAccepted || Notification.permission !== 'granted') return
 
     const now = new Date()
     const today = now.toISOString().slice(0, 10)
@@ -72,7 +74,7 @@ export function useNotifications(blocks: Block[], isAccepted: boolean) {
     }
 
     return clearAll
-  }, [blocks, isAccepted, clearAll])
+  }, [blocks, isAccepted, enabled, clearAll])
 
   return { clearAll }
 }
