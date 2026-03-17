@@ -227,7 +227,7 @@ export default function RoutinesPage() {
                   name="timeMode"
                   checked={form.timeMode === 'flexible'}
                   onChange={() => setForm({ ...form, timeMode: 'flexible' })}
-                  className="accent-accent"
+                  className="accent-[#c5a55a]"
                 />
                 <span className="text-text-primary text-sm">Flexible</span>
               </label>
@@ -237,7 +237,7 @@ export default function RoutinesPage() {
                   name="timeMode"
                   checked={form.timeMode === 'exact'}
                   onChange={() => setForm({ ...form, timeMode: 'exact' })}
-                  className="accent-accent"
+                  className="accent-[#c5a55a]"
                 />
                 <span className="text-text-primary text-sm">Exact time</span>
               </label>
@@ -274,7 +274,7 @@ export default function RoutinesPage() {
             <button type="button" onClick={() => setShowForm(false)} className="px-3 py-1.5 text-text-secondary hover:text-text-primary transition-colors">
               Cancel
             </button>
-            <button type="submit" disabled={!form.title.trim() || creating} className="px-4 py-1.5 bg-accent text-black rounded font-medium hover:bg-accent-hover disabled:opacity-40 transition-colors">
+            <button type="submit" disabled={!form.title.trim() || creating} className="px-4 py-1.5 bg-accent text-black rounded font-medium hover:bg-accent-hover disabled:opacity-60 transition-colors">
               {editingId ? 'Save' : 'Add'}
             </button>
           </div>

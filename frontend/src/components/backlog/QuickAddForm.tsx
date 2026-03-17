@@ -144,7 +144,7 @@ export default function QuickAddForm({ onClose }: Props) {
         <button
           type="submit"
           disabled={!title.trim() || loading}
-          className="px-4 py-1.5 bg-accent text-black rounded font-medium hover:bg-accent-hover disabled:opacity-40 transition-colors"
+          className="px-4 py-1.5 bg-accent text-black rounded font-medium hover:bg-accent-hover disabled:opacity-60 transition-colors"
         >
           {loading ? 'Adding...' : 'Add Task'}
         </button>

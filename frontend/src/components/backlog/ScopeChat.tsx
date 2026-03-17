@@ -249,7 +249,7 @@ export default function ScopeChat({ onClose }: Props) {
           <button
             onClick={handleConfirm}
             disabled={confirming}
-            className="flex-1 py-2.5 bg-accent text-black rounded-xl font-medium hover:bg-accent-hover active:scale-[0.98] disabled:opacity-40 transition-all"
+            className="flex-1 py-2.5 bg-accent text-black rounded-xl font-medium hover:bg-accent-hover active:scale-[0.98] disabled:opacity-60 transition-all"
           >
             {confirming ? 'Creating...' : 'Create Tasks'}
           </button>
@@ -281,7 +281,7 @@ export default function ScopeChat({ onClose }: Props) {
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className="px-4 py-2.5 bg-accent text-black rounded-xl font-medium hover:bg-accent-hover active:scale-95 disabled:opacity-40 transition-all"
+            className="px-4 py-2.5 bg-accent text-black rounded-xl font-medium hover:bg-accent-hover active:scale-95 disabled:opacity-60 transition-all"
           >
             Send
           </button>

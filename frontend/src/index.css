@@ -27,7 +27,20 @@ body {
 /* Smooth scrolling */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2a2a30 transparent;
+  scrollbar-color: #3a3a42 transparent;
+}
+
+/* Text selection */
+::selection {
+  background-color: rgba(197, 165, 90, 0.35);
+  color: #e8e6e1;
+}
+
+/* Force dark native UI for form controls (dropdowns, date/time pickers) */
+select,
+input[type="date"],
+input[type="time"] {
+  color-scheme: dark;
 }
 
 /* Safe area padding for mobile */

@@ -65,7 +65,7 @@ export default function PlanPreview({ blocks: sourceBlocks, onAccept, accepting 
         <button
           onClick={() => onAccept(localBlocks)}
           disabled={localBlocks.length === 0 || accepting}
-          className="w-full py-2.5 px-4 bg-accent text-black rounded-xl font-semibold hover:bg-accent-hover active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          className="w-full py-2.5 px-4 bg-accent text-black rounded-xl font-semibold hover:bg-accent-hover active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed transition-all"
         >
           {accepting ? 'Accepting...' : 'Accept Plan'}
         </button>

@@ -138,7 +138,7 @@ export default function ChatPanel({ messages, onSend, loading, error, isFirstMes
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className="px-4 py-2.5 bg-accent text-black rounded-xl font-medium hover:bg-accent-hover active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex-shrink-0"
+            className="px-4 py-2.5 bg-accent text-black rounded-xl font-medium hover:bg-accent-hover active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed transition-all flex-shrink-0"
           >
             Send
           </button>

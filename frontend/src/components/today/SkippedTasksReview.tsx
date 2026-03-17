@@ -86,7 +86,7 @@ export default function SkippedTasksReview({ planId, blocks, onDone }: Props) {
         <button
           onClick={onDone}
           disabled={!allResolved}
-          className="mt-6 w-full py-2.5 px-4 rounded-xl font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-accent text-black hover:bg-accent-hover active:scale-[0.99]"
+          className="mt-6 w-full py-2.5 px-4 rounded-xl font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed bg-accent text-black hover:bg-accent-hover active:scale-[0.99]"
         >
           Done — Start Planning
         </button>

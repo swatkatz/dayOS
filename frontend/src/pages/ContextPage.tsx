@@ -280,7 +280,7 @@ export default function ContextPage() {
                   <button
                     onClick={() => handleAdd(cat)}
                     disabled={!newKey.trim() || !newValue.trim()}
-                    className="px-3 py-1 bg-accent text-black rounded text-sm font-medium hover:bg-accent-hover disabled:opacity-40 transition-colors"
+                    className="px-3 py-1 bg-accent text-black rounded text-sm font-medium hover:bg-accent-hover disabled:opacity-60 transition-colors"
                   >
                     Add
                   </button>
