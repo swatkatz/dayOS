@@ -168,6 +168,10 @@ Use `/write-spec <context-name>` to generate a spec.
 
 16. `specs/multiuser.md` — Clerk auth, user-scoped data, identity package, ScopedQueries, planner decorator, new user onboarding, frontend Clerk integration
 
+**Wave 8 — Enhancements**
+
+17. `specs/tomorrow-planning.md` — Plan for tomorrow, date-aware planner prompt, Today/Tomorrow toggle, read-only future plan view
+
 ### Spec workflow
 
 - Write specs first, then implement. Never implement without a spec.
