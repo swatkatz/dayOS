@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation } from '@apollo/client/react'
 import { COMPLETE_TASK, UPDATE_TASK, DELETE_TASK, GET_TASKS } from '../../graphql/backlog'
 import { CATEGORY_COLORS } from '../../constants'
+import DurationInput from '../DurationInput'
 
 interface Task {
   id: string
@@ -66,7 +67,6 @@ export default function TaskRow({ task, isSubtask, readOnly }: Props) {
   const [notesDraft, setNotesDraft] = useState(task.notes ?? '')
   const [editingPriority, setEditingPriority] = useState(false)
   const [editingEst, setEditingEst] = useState(false)
-  const [estDraft, setEstDraft] = useState(String(task.estimatedMinutes ?? ''))
 
   const refetchOpts = { refetchQueries: [{ query: GET_TASKS, variables: { includeCompleted: true } }] }
   const [completeTask] = useMutation(COMPLETE_TASK, refetchOpts)
@@ -211,28 +211,18 @@ export default function TaskRow({ task, isSubtask, readOnly }: Props) {
 
         {/* Progress (subtask/standalone) */}
         {!locked && editingEst ? (
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <input
-              type="number"
-              value={estDraft}
-              onChange={(e) => setEstDraft(e.target.value)}
-              onBlur={() => {
+          <div className="flex-shrink-0">
+            <DurationInput
+              value={task.estimatedMinutes ?? 60}
+              onChange={(v) => {
                 setEditingEst(false)
-                const v = parseInt(estDraft)
-                if (!isNaN(v) && v > 0 && v !== task.estimatedMinutes) handleFieldUpdate({ estimatedMinutes: v })
+                if (v !== task.estimatedMinutes) handleFieldUpdate({ estimatedMinutes: v })
               }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-                if (e.key === 'Escape') { setEditingEst(false); setEstDraft(String(task.estimatedMinutes ?? '')) }
-              }}
-              autoFocus
-              className="w-14 bg-bg-primary border border-accent rounded px-1 py-0.5 text-xs text-text-primary outline-none"
             />
-            <span className="text-text-secondary text-xs">min</span>
           </div>
         ) : (
           <span
-            onClick={!locked ? () => { setEstDraft(String(task.estimatedMinutes ?? '')); setEditingEst(true) } : undefined}
+            onClick={!locked ? () => setEditingEst(true) : undefined}
             className={`text-text-secondary text-xs flex-shrink-0 ${!locked ? 'cursor-pointer hover:text-text-primary' : ''} transition-colors`}
           >
             {task.estimatedMinutes != null
@@ -300,19 +290,13 @@ export default function TaskRow({ task, isSubtask, readOnly }: Props) {
             </label>
 
             {/* Estimated minutes */}
-            <label className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1">
               <span className="text-text-secondary text-xs">Est. minutes</span>
-              <input
-                type="number"
-                defaultValue={task.estimatedMinutes ?? ''}
-                onBlur={(e) => {
-                  const v = parseInt(e.target.value)
-                  if (!isNaN(v) && v > 0) handleFieldUpdate({ estimatedMinutes: v })
-                }}
-                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
-                className="bg-bg-primary border border-border-default rounded px-2 py-1 text-text-primary w-20"
+              <DurationInput
+                value={task.estimatedMinutes ?? 60}
+                onChange={(v) => handleFieldUpdate({ estimatedMinutes: v })}
               />
-            </label>
+            </div>
           </div>
 
           {/* Deadline row */}

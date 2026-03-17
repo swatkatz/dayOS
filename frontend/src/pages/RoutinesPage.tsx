@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation } from '@apollo/client/react'
 import { GET_ROUTINES, CREATE_ROUTINE, UPDATE_ROUTINE, DELETE_ROUTINE } from '../graphql/manage'
 import { CATEGORY_COLORS } from '../constants'
+import DurationInput from '../components/DurationInput'
 
 interface Routine {
   id: string
@@ -257,16 +258,10 @@ export default function RoutinesPage() {
                 className="bg-bg-surface border border-border-default rounded px-3 py-2 text-text-primary focus:border-accent outline-none"
               />
             )}
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                value={form.preferredDurationMin}
-                onChange={(e) => setForm({ ...form, preferredDurationMin: parseInt(e.target.value) || 45 })}
-                min={1}
-                className="w-20 bg-bg-surface border border-border-default rounded px-3 py-2 text-text-primary focus:border-accent outline-none"
-              />
-              <span className="text-text-secondary text-sm">min</span>
-            </div>
+            <DurationInput
+              value={form.preferredDurationMin}
+              onChange={(v) => setForm({ ...form, preferredDurationMin: v })}
+            />
             <textarea
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}

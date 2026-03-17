@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { CATEGORY_COLORS } from '../../constants'
+import DurationInput from '../DurationInput'
 
 interface Block {
   id: string
@@ -42,42 +43,13 @@ const CATEGORIES = ['JOB', 'INTERVIEW', 'PROJECT', 'MEAL', 'BABY', 'EXERCISE', '
 export default function BlockCard({ block, onSkip, onUnskip, onComplete, onUpdateDuration, onUpdateBlock, onDelete, readOnly, active }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [editing, setEditing] = useState(false)
-  const [draftDuration, setDraftDuration] = useState(String(block.duration))
-  const [validationError, setValidationError] = useState<string | null>(null)
 
   const color = CATEGORY_COLORS[block.category] || CATEGORY_COLORS[block.category.toUpperCase()] || '#6b7280'
   const editable = !readOnly && !block.skipped && !!onUpdateBlock
 
   const handleDurationClick = () => {
     if (block.skipped || readOnly) return
-    setDraftDuration(String(block.duration))
-    setValidationError(null)
     setEditing(true)
-  }
-
-  const handleDurationSubmit = () => {
-    const val = parseInt(draftDuration, 10)
-    if (isNaN(val) || val <= 0) {
-      setValidationError('Must be > 0')
-      return
-    }
-    setValidationError(null)
-    setEditing(false)
-    if (val !== block.duration) {
-      if (onUpdateBlock) {
-        onUpdateBlock(block.id, { duration: val })
-      } else {
-        onUpdateDuration?.(block.id, val)
-      }
-    }
-  }
-
-  const handleDurationKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleDurationSubmit()
-    if (e.key === 'Escape') {
-      setEditing(false)
-      setValidationError(null)
-    }
   }
 
   return (
@@ -98,21 +70,20 @@ export default function BlockCard({ block, onSkip, onUnskip, onComplete, onUpdat
               </span>
 
               {editing ? (
-                <div className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    value={draftDuration}
-                    onChange={(e) => setDraftDuration(e.target.value)}
-                    onBlur={handleDurationSubmit}
-                    onKeyDown={handleDurationKeyDown}
-                    autoFocus
-                    className="w-16 bg-bg-surface-hover border border-border-default rounded px-2 py-0.5 text-sm text-text-primary focus:border-accent outline-none"
-                  />
-                  <span className="text-text-secondary text-sm">min</span>
-                  {validationError && (
-                    <span className="text-red-400 text-xs">{validationError}</span>
-                  )}
-                </div>
+                <DurationInput
+                  value={block.duration}
+                  onChange={(v) => {
+                    setEditing(false)
+                    setValidationError(null)
+                    if (v !== block.duration) {
+                      if (onUpdateBlock) {
+                        onUpdateBlock(block.id, { duration: v })
+                      } else {
+                        onUpdateDuration?.(block.id, v)
+                      }
+                    }
+                  }}
+                />
               ) : (
                 <button
                   onClick={handleDurationClick}

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation } from '@apollo/client/react'
 import { CREATE_TASK, GET_TASKS } from '../../graphql/backlog'
+import DurationInput from '../DurationInput'
 
 interface Props {
   onClose: () => void
@@ -90,22 +91,16 @@ export default function QuickAddForm({ onClose }: Props) {
           ))}
         </select>
 
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            value={estimatedMinutes}
-            onChange={(e) => setEstimatedMinutes(parseInt(e.target.value) || 60)}
-            min={1}
-            className="w-20 bg-bg-surface border border-border-default rounded px-3 py-2 text-text-primary focus:border-accent outline-none"
-          />
-          <span className="text-text-secondary text-sm">min</span>
-        </div>
+        <DurationInput value={estimatedMinutes} onChange={setEstimatedMinutes} />
 
         <select
           value={deadlineType}
           onChange={(e) => {
             setDeadlineType(e.target.value)
             if (!e.target.value) { setDeadlineDate(''); setDeadlineDays('') }
+            if (e.target.value === 'HARD' && !deadlineDate) {
+              setDeadlineDate(new Date().toISOString().slice(0, 10))
+            }
           }}
           className="bg-bg-surface border border-border-default rounded px-3 py-2 text-text-primary focus:border-accent outline-none"
         >
