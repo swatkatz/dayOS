@@ -74,7 +74,6 @@ export default function BlockCard({ block, onSkip, onUnskip, onComplete, onUpdat
                   value={block.duration}
                   onChange={(v) => {
                     setEditing(false)
-                    setValidationError(null)
                     if (v !== block.duration) {
                       if (onUpdateBlock) {
                         onUpdateBlock(block.id, { duration: v })
