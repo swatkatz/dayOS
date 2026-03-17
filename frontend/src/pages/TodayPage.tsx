@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useMutation } from '@apollo/client/react'
 import { GET_TODAY_PLAN, GET_RECENT_PLANS, SEND_PLAN_MESSAGE, ACCEPT_PLAN, SKIP_BLOCK, UNSKIP_BLOCK, COMPLETE_BLOCK, UPDATE_BLOCK, GET_CALENDAR_EVENTS_TODAY } from '../graphql/today'
 import { useNotifications } from '../hooks/useNotifications'
@@ -84,8 +84,8 @@ function tomorrowDate(): string {
 
 export default function TodayPage() {
   const [selectedDay, setSelectedDay] = useState<'today' | 'tomorrow'>('today')
-  const today = useMemo(todayDate, [])
-  const tomorrow = useMemo(tomorrowDate, [])
+  const [today, setToday] = useState(todayDate)
+  const [tomorrow, setTomorrow] = useState(tomorrowDate)
   const date = selectedDay === 'today' ? today : tomorrow
   const isFuture = selectedDay === 'tomorrow'
 
@@ -115,12 +115,16 @@ export default function TodayPage() {
     fetchPolicy: 'network-only',
   })
 
-  // Refetch calendar on tab focus
+  // Recalculate dates and refetch calendar on tab focus
   const handleVisibilityChange = useCallback(() => {
     if (!document.hidden) {
+      const newToday = todayDate()
+      const newTomorrow = tomorrowDate()
+      if (newToday !== today) setToday(newToday)
+      if (newTomorrow !== tomorrow) setTomorrow(newTomorrow)
       refetchCalendar()
     }
-  }, [refetchCalendar])
+  }, [today, tomorrow, refetchCalendar])
 
   useEffect(() => {
     document.addEventListener('visibilitychange', handleVisibilityChange)
