@@ -83,9 +83,3 @@ The **History** page shows all past plans with their blocks and chat logs. See w
 ## Tech Stack
 
 Go + GraphQL + PostgreSQL backend, React + TypeScript frontend, deployed on Railway. Auth via Clerk (invite-only). AI powered by Claude.
-
----
-
-## Video Walkthrough
-
-See [VIDEO_SCRIPT.md](VIDEO_SCRIPT.md) for a guided demo script.
