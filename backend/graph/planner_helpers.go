@@ -65,8 +65,8 @@ func (r *mutationResolver) buildPlanChatInput(ctx context.Context, plan db.DayPl
 		}
 	}
 
-	// Gather routines for today's day of week
-	dow := int32(planDate.Weekday()) // Sunday=0, same as Go's convention
+	// Gather routines for the plan's day of week (use timezone-adjusted date)
+	dow := int32(planDay.Weekday()) // Sunday=0, same as Go's convention
 	routines, err := r.RoutineStore.ListRoutinesForDay(ctx, dow)
 	if err != nil {
 		return input, fmt.Errorf("listing routines: %w", err)
