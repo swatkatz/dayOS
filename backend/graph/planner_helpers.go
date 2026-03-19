@@ -155,10 +155,12 @@ func (r *mutationResolver) buildPlanChatInput(ctx context.Context, plan db.DayPl
 		if calErr == nil && calResult.Connected {
 			for _, e := range calResult.Events {
 				input.CalendarEvents = append(input.CalendarEvents, planner.CalendarEventInfo{
-					Title:     e.Title,
-					StartTime: e.StartTime,
-					Duration:  e.Duration,
-					AllDay:    e.AllDay,
+					Title:         e.Title,
+					StartTime:     e.StartTime,
+					Duration:      e.Duration,
+					AllDay:        e.AllDay,
+					AttendeeCount: e.AttendeeCount,
+					EventType:     e.EventType,
 				})
 			}
 		}

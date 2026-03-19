@@ -457,3 +457,52 @@ func TestDataMinimization(t *testing.T) {
 	}
 }
 
+func TestConvertEventsPreservesAttendeeCountAndEventType(t *testing.T) {
+	raw := []RawEvent{
+		{
+			Title:         "Focus Time",
+			Start:         time.Date(2026, 3, 13, 9, 0, 0, 0, time.UTC),
+			End:           time.Date(2026, 3, 13, 11, 0, 0, 0, time.UTC),
+			AttendeeCount: 0,
+			EventType:     "focusTime",
+		},
+		{
+			Title:         "Team Standup",
+			Start:         time.Date(2026, 3, 13, 11, 0, 0, 0, time.UTC),
+			End:           time.Date(2026, 3, 13, 11, 30, 0, 0, time.UTC),
+			AttendeeCount: 5,
+			EventType:     "default",
+		},
+		{
+			Title:  "All Day",
+			AllDay: true,
+		},
+	}
+
+	events := convertEvents(raw)
+	if len(events) != 3 {
+		t.Fatalf("expected 3 events, got %d", len(events))
+	}
+
+	// Focus time event
+	if events[0].AttendeeCount != 0 {
+		t.Errorf("expected attendee_count 0, got %d", events[0].AttendeeCount)
+	}
+	if events[0].EventType != "focusTime" {
+		t.Errorf("expected event_type 'focusTime', got %q", events[0].EventType)
+	}
+
+	// Standup
+	if events[1].AttendeeCount != 5 {
+		t.Errorf("expected attendee_count 5, got %d", events[1].AttendeeCount)
+	}
+	if events[1].EventType != "default" {
+		t.Errorf("expected event_type 'default', got %q", events[1].EventType)
+	}
+
+	// All-day events should preserve fields too
+	if events[2].AttendeeCount != 0 {
+		t.Errorf("expected attendee_count 0 for all-day, got %d", events[2].AttendeeCount)
+	}
+}
+

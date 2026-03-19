@@ -38,18 +38,22 @@ type Cache interface {
 
 // RawEvent is the raw event data from the Google Calendar API.
 type RawEvent struct {
-	Title string
-	Start time.Time
-	End   time.Time
-	AllDay bool
+	Title         string
+	Start         time.Time
+	End           time.Time
+	AllDay        bool
+	AttendeeCount int    // number of non-self attendees
+	EventType     string // e.g. "focusTime", "default"
 }
 
 // Event is the minimal event data exposed via GraphQL and to the planner.
 type Event struct {
-	Title     string `json:"title"`
-	StartTime string `json:"start_time"` // "HH:MM"
-	Duration  int    `json:"duration"`   // minutes
-	AllDay    bool   `json:"all_day"`
+	Title         string `json:"title"`
+	StartTime     string `json:"start_time"`     // "HH:MM"
+	Duration      int    `json:"duration"`        // minutes
+	AllDay        bool   `json:"all_day"`
+	AttendeeCount int    `json:"attendee_count"`  // non-self attendees
+	EventType     string `json:"event_type"`      // e.g. "focusTime", "default"
 }
 
 // EventsResult is the return value from GetEvents.
@@ -232,8 +236,10 @@ func convertEvents(raw []RawEvent) []Event {
 	events := make([]Event, 0, len(raw))
 	for _, r := range raw {
 		e := Event{
-			Title: r.Title,
-			AllDay: r.AllDay,
+			Title:         r.Title,
+			AllDay:        r.AllDay,
+			AttendeeCount: r.AttendeeCount,
+			EventType:     r.EventType,
 		}
 		if !r.AllDay {
 			e.StartTime = r.Start.Format("15:04")

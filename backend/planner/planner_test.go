@@ -387,15 +387,15 @@ func TestSystemPromptIncludesCalendarEvents(t *testing.T) {
 	svc := &Service{Client: &mockAIClient{}, Model: "test"}
 	input := PlanChatInput{
 		CalendarEvents: []CalendarEventInfo{
-			{Title: "Team standup", StartTime: "09:30", Duration: 30, AllDay: false},
-			{Title: "Design review", StartTime: "13:00", Duration: 60, AllDay: false},
+			{Title: "Team standup", StartTime: "09:30", Duration: 30, AllDay: false, AttendeeCount: 5},
+			{Title: "Design review", StartTime: "13:00", Duration: 60, AllDay: false, AttendeeCount: 3},
 			{Title: "Elijah's birthday", AllDay: true},
 		},
 		UserMessage: "Plan my day",
 	}
 	prompt := svc.buildPlanSystemPrompt(input)
-	if !strings.Contains(prompt, "TODAY'S CALENDAR EVENTS") {
-		t.Error("expected TODAY'S CALENDAR EVENTS section in prompt")
+	if !strings.Contains(prompt, "CALENDAR MEETINGS") {
+		t.Error("expected CALENDAR MEETINGS section in prompt")
 	}
 	if !strings.Contains(prompt, "Team standup") {
 		t.Error("expected 'Team standup' in prompt")
@@ -440,7 +440,7 @@ func TestSystemPromptTomorrowDateLabel(t *testing.T) {
 	input := PlanChatInput{
 		PlanDateLabel: "TOMORROW (Thursday, March 18)",
 		CalendarEvents: []CalendarEventInfo{
-			{Title: "Morning standup", StartTime: "09:00", Duration: 30},
+			{Title: "Morning standup", StartTime: "09:00", Duration: 30, AttendeeCount: 3},
 		},
 		Routines: []RoutineInfo{
 			{RoutineID: "r1", Title: "Exercise", Category: "exercise", DurationMin: 45, PreferredTime: "morning"},
@@ -452,8 +452,8 @@ func TestSystemPromptTomorrowDateLabel(t *testing.T) {
 	if !strings.Contains(prompt, "PLAN DATE: TOMORROW (Thursday, March 18)") {
 		t.Error("expected PLAN DATE label in prompt")
 	}
-	if !strings.Contains(prompt, "TOMORROW (Thursday, March 18) CALENDAR EVENTS") {
-		t.Error("expected date label in calendar events header")
+	if !strings.Contains(prompt, "TOMORROW (Thursday, March 18) CALENDAR MEETINGS") {
+		t.Error("expected date label in calendar meetings header")
 	}
 	if !strings.Contains(prompt, "TOMORROW (Thursday, March 18) ROUTINES") {
 		t.Error("expected date label in routines header")
@@ -465,14 +465,14 @@ func TestSystemPromptDefaultDateLabel(t *testing.T) {
 	svc := &Service{Client: &mockAIClient{}, Model: "test"}
 	input := PlanChatInput{
 		CalendarEvents: []CalendarEventInfo{
-			{Title: "Meeting", StartTime: "10:00", Duration: 60},
+			{Title: "Meeting", StartTime: "10:00", Duration: 60, AttendeeCount: 3},
 		},
 		UserMessage: "Plan my day",
 	}
 	prompt := svc.buildPlanSystemPrompt(input)
 
-	if !strings.Contains(prompt, "TODAY'S CALENDAR EVENTS") {
-		t.Error("expected TODAY'S as default label for calendar events")
+	if !strings.Contains(prompt, "TODAY'S CALENDAR MEETINGS") {
+		t.Error("expected TODAY'S as default label for calendar meetings")
 	}
 	if !strings.Contains(prompt, "TODAY'S ROUTINES") {
 		t.Error("expected TODAY'S as default label for routines")
@@ -533,6 +533,186 @@ func TestSystemPromptFutureReplanFullDay(t *testing.T) {
 	}
 	if strings.Contains(prompt, `"time" >= current time`) {
 		t.Error("future replan should NOT contain time-gating rule")
+	}
+}
+
+// --- Focus block classification tests ---
+
+func TestIsFocusBlock(t *testing.T) {
+	tests := []struct {
+		name  string
+		event CalendarEventInfo
+		want  bool
+	}{
+		{
+			name:  "Google focusTime eventType",
+			event: CalendarEventInfo{Title: "Focus Time", StartTime: "09:00", Duration: 120, EventType: "focusTime"},
+			want:  true,
+		},
+		{
+			name:  "focusTime eventType with any title",
+			event: CalendarEventInfo{Title: "Quarterly planning prep", StartTime: "09:00", Duration: 120, EventType: "focusTime"},
+			want:  true,
+		},
+		{
+			name:  "title deep work, zero attendees",
+			event: CalendarEventInfo{Title: "Deep Work", StartTime: "09:00", Duration: 120, AttendeeCount: 0},
+			want:  true,
+		},
+		{
+			name:  "title DNS exact match",
+			event: CalendarEventInfo{Title: "DNS", StartTime: "09:00", Duration: 120, AttendeeCount: 1},
+			want:  true,
+		},
+		{
+			name:  "title DNB exact match",
+			event: CalendarEventInfo{Title: "dnb", StartTime: "09:00", Duration: 120, AttendeeCount: 0},
+			want:  true,
+		},
+		{
+			name:  "DNS in longer title should not match",
+			event: CalendarEventInfo{Title: "DNS migration review", StartTime: "09:00", Duration: 60, AttendeeCount: 0},
+			want:  false,
+		},
+		{
+			name:  "title focus time, case insensitive",
+			event: CalendarEventInfo{Title: "FOCUS TIME", StartTime: "09:00", Duration: 120, AttendeeCount: 0},
+			want:  true,
+		},
+		{
+			name:  "title heads down",
+			event: CalendarEventInfo{Title: "Heads Down - API work", StartTime: "09:00", Duration: 120, AttendeeCount: 0},
+			want:  true,
+		},
+		{
+			name:  "title maker time",
+			event: CalendarEventInfo{Title: "Maker Time", StartTime: "09:00", Duration: 120, AttendeeCount: 0},
+			want:  true,
+		},
+		{
+			name:  "title no meetings",
+			event: CalendarEventInfo{Title: "No Meetings", StartTime: "09:00", Duration: 120, AttendeeCount: 0},
+			want:  true,
+		},
+		{
+			name:  "real meeting with 2+ attendees despite focus title",
+			event: CalendarEventInfo{Title: "DNS Block", StartTime: "09:00", Duration: 120, AttendeeCount: 2},
+			want:  false,
+		},
+		{
+			name:  "regular meeting",
+			event: CalendarEventInfo{Title: "Team Standup", StartTime: "09:30", Duration: 30, AttendeeCount: 3},
+			want:  false,
+		},
+		{
+			name:  "regular meeting no attendee info",
+			event: CalendarEventInfo{Title: "Team Standup", StartTime: "09:30", Duration: 30, AttendeeCount: 0},
+			want:  false,
+		},
+		{
+			name:  "all-day event even with focusTime type",
+			event: CalendarEventInfo{Title: "Focus Day", AllDay: true, EventType: "focusTime"},
+			want:  false,
+		},
+		{
+			name:  "do not disturb title",
+			event: CalendarEventInfo{Title: "Do Not Disturb", StartTime: "09:00", Duration: 120, AttendeeCount: 0},
+			want:  true,
+		},
+		{
+			name:  "protected time title",
+			event: CalendarEventInfo{Title: "Protected Time", StartTime: "09:00", Duration: 120, AttendeeCount: 0},
+			want:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isFocusBlock(tt.event)
+			if got != tt.want {
+				t.Errorf("isFocusBlock(%+v) = %v, want %v", tt.event, got, tt.want)
+			}
+		})
+	}
+}
+
+// Test: prompt splits focus blocks from meetings
+func TestSystemPromptFocusBlocks(t *testing.T) {
+	svc := &Service{Client: &mockAIClient{}, Model: "test"}
+	input := PlanChatInput{
+		CalendarEvents: []CalendarEventInfo{
+			{Title: "Team standup", StartTime: "09:30", Duration: 30, AttendeeCount: 5},
+			{Title: "Focus Time", StartTime: "10:00", Duration: 120, EventType: "focusTime"},
+			{Title: "Deep Work - API refactor", StartTime: "14:00", Duration: 90, AttendeeCount: 0},
+			{Title: "Elijah's birthday", AllDay: true},
+		},
+		UserMessage: "Plan my day",
+	}
+	prompt := svc.buildPlanSystemPrompt(input)
+
+	// Should have MEETINGS section with the standup
+	if !strings.Contains(prompt, "CALENDAR MEETINGS") {
+		t.Error("expected CALENDAR MEETINGS section")
+	}
+	if !strings.Contains(prompt, "Team standup") {
+		t.Error("expected Team standup in meetings")
+	}
+
+	// Should have FOCUS BLOCKS section
+	if !strings.Contains(prompt, "FOCUS BLOCKS") {
+		t.Error("expected FOCUS BLOCKS section")
+	}
+	if !strings.Contains(prompt, "Focus Time") {
+		t.Error("expected Focus Time in focus blocks")
+	}
+	if !strings.Contains(prompt, "Deep Work - API refactor") {
+		t.Error("expected Deep Work - API refactor in focus blocks")
+	}
+
+	// Should have ALL-DAY section
+	if !strings.Contains(prompt, "ALL-DAY EVENTS") {
+		t.Error("expected ALL-DAY EVENTS section")
+	}
+
+	// Should have updated calendar rules mentioning focus blocks
+	if !strings.Contains(prompt, "FOCUS BLOCKS are available windows") {
+		t.Error("expected focus block scheduling rule")
+	}
+
+	// Should NOT have old "CALENDAR EVENTS" label
+	if strings.Contains(prompt, "CALENDAR EVENTS (fixed") {
+		t.Error("should not have old CALENDAR EVENTS label")
+	}
+
+	// Data minimization: attendee_count and event_type should not appear in prompt
+	if strings.Contains(prompt, "attendee_count") {
+		t.Error("prompt should not contain attendee_count (data minimization)")
+	}
+	if strings.Contains(prompt, "event_type") {
+		t.Error("prompt should not contain event_type (data minimization)")
+	}
+}
+
+// Test: prompt with only focus blocks and no meetings
+func TestSystemPromptOnlyFocusBlocks(t *testing.T) {
+	svc := &Service{Client: &mockAIClient{}, Model: "test"}
+	input := PlanChatInput{
+		CalendarEvents: []CalendarEventInfo{
+			{Title: "Focus Time", StartTime: "09:00", Duration: 120, EventType: "focusTime"},
+		},
+		UserMessage: "Plan my day",
+	}
+	prompt := svc.buildPlanSystemPrompt(input)
+
+	// No meetings data section (the rules text may still mention meetings generically)
+	if strings.Contains(prompt, "CALENDAR MEETINGS (fixed") {
+		t.Error("should not have CALENDAR MEETINGS data section when there are no meetings")
+	}
+	if !strings.Contains(prompt, "FOCUS BLOCKS") {
+		t.Error("expected FOCUS BLOCKS section")
+	}
+	if !strings.Contains(prompt, "CALENDAR RULES") {
+		t.Error("expected CALENDAR RULES even with only focus blocks")
 	}
 }
 

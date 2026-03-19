@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 
 	"dayos/validate"
@@ -76,10 +77,12 @@ type CarryOverTask struct {
 
 // CalendarEventInfo is calendar event data for the planner prompt.
 type CalendarEventInfo struct {
-	Title     string `json:"title"`
-	StartTime string `json:"start_time"`
-	Duration  int    `json:"duration_min"`
-	AllDay    bool   `json:"all_day"`
+	Title         string `json:"title"`
+	StartTime     string `json:"start_time"`
+	Duration      int    `json:"duration_min"`
+	AllDay        bool   `json:"all_day"`
+	AttendeeCount int    `json:"attendee_count"`
+	EventType     string `json:"event_type"`
 }
 
 // --- Plan chat ---
@@ -266,6 +269,79 @@ func ParseTaskProposal(raw string) (*TaskProposal, error) {
 
 // --- Prompt construction ---
 
+// focusTitlePatterns matches event titles that indicate a focus/DND block.
+// Patterns are checked via strings.Contains, so avoid bare acronyms that
+// could substring-match real meeting titles (e.g. "dns" in "DNS migration").
+var focusTitlePatterns = []string{
+	"focus time", "focus block", "deep focus",
+	"deep work",
+	"do not schedule", "do not book", "do not disturb",
+	"heads down", "no meetings",
+	"maker time", "flow time",
+	"protected time",
+}
+
+// focusExactPatterns matches when the full lowercased title equals one of these.
+// Used for short acronyms that would false-positive as substrings.
+var focusExactPatterns = []string{
+	"focus", "dns", "dnb", "dnd",
+}
+
+// isFocusBlock returns true if a calendar event should be treated as a
+// schedulable deep work window rather than an immovable meeting.
+func isFocusBlock(e CalendarEventInfo) bool {
+	if e.AllDay {
+		return false
+	}
+	if e.EventType == "focusTime" {
+		return true
+	}
+	if e.AttendeeCount <= 1 {
+		lower := strings.ToLower(e.Title)
+		for _, pattern := range focusTitlePatterns {
+			if strings.Contains(lower, pattern) {
+				return true
+			}
+		}
+		// Short acronyms require exact title match to avoid false positives
+		// (e.g. "dns" matching "DNS migration review")
+		if slices.Contains(focusExactPatterns, strings.TrimSpace(lower)) {
+			return true
+		}
+	}
+	return false
+}
+
+// calendarPromptEvent is a lean struct for serialization into the AI prompt.
+// It omits AttendeeCount and EventType (used only for classification, not by the AI).
+type calendarPromptEvent struct {
+	Title     string `json:"title"`
+	StartTime string `json:"start_time"`
+	Duration  int    `json:"duration_min"`
+}
+
+// calendarPromptAllDayEvent is the lean struct for all-day events in the prompt.
+type calendarPromptAllDayEvent struct {
+	Title  string `json:"title"`
+	AllDay bool   `json:"all_day"`
+}
+
+func toPromptEvents(events []CalendarEventInfo) []calendarPromptEvent {
+	out := make([]calendarPromptEvent, len(events))
+	for i, e := range events {
+		out[i] = calendarPromptEvent{Title: e.Title, StartTime: e.StartTime, Duration: e.Duration}
+	}
+	return out
+}
+
+func toPromptAllDayEvents(events []CalendarEventInfo) []calendarPromptAllDayEvent {
+	out := make([]calendarPromptAllDayEvent, len(events))
+	for i, e := range events {
+		out[i] = calendarPromptAllDayEvent{Title: e.Title, AllDay: e.AllDay}
+	}
+	return out
+}
+
 func (s *Service) buildPlanSystemPrompt(input PlanChatInput) string {
 	var b strings.Builder
 
@@ -296,29 +372,39 @@ func (s *Service) buildPlanSystemPrompt(input PlanChatInput) string {
 
 	// Calendar events (between context and routines, only if connected)
 	if len(input.CalendarEvents) > 0 {
-		// Split into timed and all-day events
-		var timed, allDay []CalendarEventInfo
+		// Three-way split: meetings, focus blocks, all-day
+		var meetings, focusBlocks, allDay []CalendarEventInfo
 		for _, e := range input.CalendarEvents {
-			if e.AllDay {
+			switch {
+			case e.AllDay:
 				allDay = append(allDay, e)
-			} else {
-				timed = append(timed, e)
+			case isFocusBlock(e):
+				focusBlocks = append(focusBlocks, e)
+			default:
+				meetings = append(meetings, e)
 			}
 		}
-		if len(timed) > 0 {
-			timedData, _ := validate.FormatContextData(fmt.Sprintf("%s CALENDAR EVENTS (fixed — do NOT move, overlap, or reschedule these):", dateLabel), timed)
-			b.WriteString(timedData)
+		if len(meetings) > 0 {
+			meetingData, _ := validate.FormatContextData(fmt.Sprintf("%s CALENDAR MEETINGS (fixed — do NOT move, overlap, or reschedule these):", dateLabel), toPromptEvents(meetings))
+			b.WriteString(meetingData)
+			b.WriteString("\n\n")
+		}
+		if len(focusBlocks) > 0 {
+			focusData, _ := validate.FormatContextData(fmt.Sprintf("%s FOCUS BLOCKS (calendar holds on these windows — treat as available deep work time, not meetings):", dateLabel), toPromptEvents(focusBlocks))
+			b.WriteString(focusData)
 			b.WriteString("\n\n")
 		}
 		if len(allDay) > 0 {
-			allDayData, _ := validate.FormatContextData("ALL-DAY EVENTS (for awareness, not time-blocked):", allDay)
+			allDayData, _ := validate.FormatContextData("ALL-DAY EVENTS (for awareness, not time-blocked):", toPromptAllDayEvents(allDay))
 			b.WriteString(allDayData)
 			b.WriteString("\n\n")
 		}
 		b.WriteString(`CALENDAR RULES:
-- Calendar events are IMMOVABLE. Schedule all tasks and routines around them.
+- CALENDAR MEETINGS are IMMOVABLE. Schedule all tasks and routines around them.
 - Leave 10 min buffer before and after meetings for context switching.
 - Do not schedule deep focus work in gaps shorter than 45 min between meetings.
+- FOCUS BLOCKS are available windows — prefer scheduling the hardest cognitive tasks (high or medium priority, 30+ min duration) into them. They are not meetings; do not create a block for the focus event itself. Instead, fill the window with appropriate task blocks from the backlog. If there are not enough deep focus tasks to fill the window, leave the remaining time empty.
+- Routines should NOT be scheduled during focus blocks unless the routine has an exact_time that falls within the focus window.
 - All-day events are informational — mention them in relevant block notes if useful.
 
 `)

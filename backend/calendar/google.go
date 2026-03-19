@@ -20,11 +20,18 @@ func NewGoogleCalendarAPI() *GoogleCalendarAPI {
 	return &GoogleCalendarAPI{HTTPClient: http.DefaultClient}
 }
 
+// calendarEventAttendee represents a single attendee entry from Google Calendar.
+type calendarEventAttendee struct {
+	Self bool `json:"self"`
+}
+
 // calendarEvent represents the relevant fields from a Google Calendar event.
 type calendarEvent struct {
-	Summary string            `json:"summary"`
-	Start   calendarEventTime `json:"start"`
-	End     calendarEventTime `json:"end"`
+	Summary   string                  `json:"summary"`
+	Start     calendarEventTime       `json:"start"`
+	End       calendarEventTime       `json:"end"`
+	Attendees []calendarEventAttendee `json:"attendees"`
+	EventType string                  `json:"eventType"`
 }
 
 type calendarEventTime struct {
@@ -47,7 +54,7 @@ func (g *GoogleCalendarAPI) FetchEvents(ctx context.Context, accessToken string,
 	params.Set("timeMax", dayEnd.Format(time.RFC3339))
 	params.Set("singleEvents", "true")
 	params.Set("orderBy", "startTime")
-	params.Set("fields", "items(summary,start,end)")
+	params.Set("fields", "items(summary,start,end,attendees/self,eventType)")
 
 	apiURL := fmt.Sprintf("https://www.googleapis.com/calendar/v3/calendars/%s/events?%s",
 		url.PathEscape(calendarID), params.Encode())
@@ -76,7 +83,15 @@ func (g *GoogleCalendarAPI) FetchEvents(ctx context.Context, accessToken string,
 
 	var events []RawEvent
 	for _, item := range listResp.Items {
-		e := RawEvent{Title: item.Summary}
+		e := RawEvent{Title: item.Summary, EventType: item.EventType}
+
+		// Count non-self attendees (excludes the calendar owner's own RSVP)
+		for _, a := range item.Attendees {
+			if !a.Self {
+				e.AttendeeCount++
+			}
+		}
+
 		if item.Start.Date != "" {
 			// All-day event
 			e.AllDay = true
