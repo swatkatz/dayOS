@@ -84,7 +84,7 @@ export default function AcceptedPlanView({ blocks, onSkip, onUnskip, onComplete,
       {!readOnly && (
         <button
           onClick={onReplan}
-          className="w-full py-2.5 px-4 rounded-xl border border-border-default text-text-secondary hover:text-text-primary hover:border-accent active:scale-[0.99] transition-all"
+          className="w-full py-2.5 px-4 rounded-xl border border-accent/40 text-accent hover:bg-accent/10 active:scale-[0.99] transition-all"
         >
           Something came up
         </button>

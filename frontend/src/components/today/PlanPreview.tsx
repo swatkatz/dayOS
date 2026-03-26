@@ -69,7 +69,7 @@ export default function PlanPreview({ blocks: sourceBlocks, onAccept, accepting,
           <button
             onClick={onRevert}
             disabled={reverting}
-            className="py-2.5 px-4 border border-border-default text-text-secondary rounded-xl font-medium hover:bg-bg-surface active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+            className="py-2.5 px-4 border border-red-500/40 text-red-400 rounded-xl font-medium hover:bg-red-500/10 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed transition-all"
           >
             {reverting ? 'Reverting...' : 'Undo'}
           </button>
