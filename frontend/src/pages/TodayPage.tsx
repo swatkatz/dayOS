@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useMutation } from '@apollo/client/react'
-import { GET_TODAY_PLAN, GET_RECENT_PLANS, SEND_PLAN_MESSAGE, ACCEPT_PLAN, SKIP_BLOCK, UNSKIP_BLOCK, COMPLETE_BLOCK, UPDATE_BLOCK, GET_CALENDAR_EVENTS_TODAY } from '../graphql/today'
+import { GET_TODAY_PLAN, GET_RECENT_PLANS, SEND_PLAN_MESSAGE, ACCEPT_PLAN, REVERT_PLAN, SKIP_BLOCK, UNSKIP_BLOCK, COMPLETE_BLOCK, UPDATE_BLOCK, GET_CALENDAR_EVENTS_TODAY } from '../graphql/today'
 import { useNotifications } from '../hooks/useNotifications'
 import SkippedTasksReview from '../components/today/SkippedTasksReview'
 import ChatPanel from '../components/today/ChatPanel'
@@ -34,6 +34,7 @@ interface DayPlan {
   status: string
   blocks: Block[]
   messages: Message[]
+  canRevert: boolean
   createdAt: string
   updatedAt: string
 }
@@ -59,6 +60,10 @@ interface SendPlanMessageData {
 
 interface AcceptPlanData {
   acceptPlan: DayPlan
+}
+
+interface RevertPlanData {
+  revertPlan: DayPlan
 }
 
 interface BlockMutationData {
@@ -133,6 +138,7 @@ export default function TodayPage() {
 
   const [sendMessage, { loading: sending }] = useMutation<SendPlanMessageData>(SEND_PLAN_MESSAGE)
   const [acceptPlan, { loading: accepting }] = useMutation<AcceptPlanData>(ACCEPT_PLAN)
+  const [revertPlan, { loading: reverting }] = useMutation<RevertPlanData>(REVERT_PLAN)
   const [skipBlock] = useMutation<BlockMutationData>(SKIP_BLOCK)
   const [unskipBlock] = useMutation<BlockMutationData>(UNSKIP_BLOCK)
   const [completeBlock] = useMutation<BlockMutationData>(COMPLETE_BLOCK)
@@ -142,6 +148,7 @@ export default function TodayPage() {
   const blocks = plan?.blocks ?? []
   const messages = plan?.messages ?? []
   const isAccepted = plan?.status === 'ACCEPTED'
+  const canRevert = plan?.canRevert ?? false
 
   useNotifications(blocks, isAccepted && !replanning, !isFuture)
 
@@ -236,6 +243,26 @@ export default function TodayPage() {
       setReplanning(false)
     } catch {
       // Accept error
+    }
+  }
+
+  const handleRevert = async () => {
+    try {
+      await revertPlan({
+        variables: { date },
+        update: (cache, { data }) => {
+          if (data?.revertPlan) {
+            cache.writeQuery({
+              query: GET_TODAY_PLAN,
+              variables: { date },
+              data: { dayPlan: data.revertPlan },
+            })
+          }
+        },
+      })
+      setReplanning(false)
+    } catch {
+      // Revert error
     }
   }
 
@@ -488,7 +515,7 @@ export default function TodayPage() {
           />
         </div>
         <div className={`md:w-1/2 md:h-full ${mobileTab === 'plan' ? 'flex-1' : 'hidden'} md:block`}>
-          <PlanPreview blocks={blocks} onAccept={handleAccept} accepting={accepting} />
+          <PlanPreview blocks={blocks} onAccept={handleAccept} accepting={accepting} canRevert={canRevert} onRevert={handleRevert} reverting={reverting} />
         </div>
       </div>
     </div>

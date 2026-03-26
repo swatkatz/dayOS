@@ -62,6 +62,7 @@ type ComplexityRoot struct {
 
 	DayPlan struct {
 		Blocks    func(childComplexity int) int
+		CanRevert func(childComplexity int) int
 		CreatedAt func(childComplexity int) int
 		ID        func(childComplexity int) int
 		Messages  func(childComplexity int) int
@@ -88,6 +89,7 @@ type ComplexityRoot struct {
 		DeleteTask               func(childComplexity int, id uuid.UUID) int
 		DisconnectGoogleCalendar func(childComplexity int) int
 		ResolveSkippedBlock      func(childComplexity int, planID uuid.UUID, blockID string, intentional bool) int
+		RevertPlan               func(childComplexity int, date model.Date) int
 		SendPlanMessage          func(childComplexity int, date model.Date, message string) int
 		SendTaskMessage          func(childComplexity int, conversationID uuid.UUID, message string) int
 		SkipBlock                func(childComplexity int, planID uuid.UUID, blockID string) int
@@ -197,6 +199,7 @@ type MutationResolver interface {
 	DeleteContext(ctx context.Context, id uuid.UUID) (bool, error)
 	SendPlanMessage(ctx context.Context, date model.Date, message string) (*model.DayPlan, error)
 	AcceptPlan(ctx context.Context, date model.Date) (*model.DayPlan, error)
+	RevertPlan(ctx context.Context, date model.Date) (*model.DayPlan, error)
 	SkipBlock(ctx context.Context, planID uuid.UUID, blockID string) (*model.DayPlan, error)
 	UnskipBlock(ctx context.Context, planID uuid.UUID, blockID string) (*model.DayPlan, error)
 	CompleteBlock(ctx context.Context, planID uuid.UUID, blockID string) (*model.DayPlan, error)
@@ -321,6 +324,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DayPlan.Blocks(childComplexity), true
+	case "DayPlan.canRevert":
+		if e.ComplexityRoot.DayPlan.CanRevert == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DayPlan.CanRevert(childComplexity), true
 	case "DayPlan.createdAt":
 		if e.ComplexityRoot.DayPlan.CreatedAt == nil {
 			break
@@ -498,6 +507,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ResolveSkippedBlock(childComplexity, args["planId"].(uuid.UUID), args["blockId"].(string), args["intentional"].(bool)), true
+	case "Mutation.revertPlan":
+		if e.ComplexityRoot.Mutation.RevertPlan == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_revertPlan_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RevertPlan(childComplexity, args["date"].(model.Date)), true
 	case "Mutation.sendPlanMessage":
 		if e.ComplexityRoot.Mutation.SendPlanMessage == nil {
 			break
@@ -1282,6 +1302,17 @@ func (ec *executionContext) field_Mutation_resolveSkippedBlock_args(ctx context.
 		return nil, err
 	}
 	args["intentional"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_revertPlan_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "date", ec.unmarshalNDate2dayosᚋgraphᚋmodelᚐDate)
+	if err != nil {
+		return nil, err
+	}
+	args["date"] = arg0
 	return args, nil
 }
 
@@ -2298,6 +2329,35 @@ func (ec *executionContext) fieldContext_DayPlan_messages(_ context.Context, fie
 	return fc, nil
 }
 
+func (ec *executionContext) _DayPlan_canRevert(ctx context.Context, field graphql.CollectedField, obj *model.DayPlan) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DayPlan_canRevert,
+		func(ctx context.Context) (any, error) {
+			return obj.CanRevert, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DayPlan_canRevert(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DayPlan",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _DayPlan_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.DayPlan) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -3057,6 +3117,8 @@ func (ec *executionContext) fieldContext_Mutation_sendPlanMessage(ctx context.Co
 				return ec.fieldContext_DayPlan_blocks(ctx, field)
 			case "messages":
 				return ec.fieldContext_DayPlan_messages(ctx, field)
+			case "canRevert":
+				return ec.fieldContext_DayPlan_canRevert(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_DayPlan_createdAt(ctx, field)
 			case "updatedAt":
@@ -3114,6 +3176,8 @@ func (ec *executionContext) fieldContext_Mutation_acceptPlan(ctx context.Context
 				return ec.fieldContext_DayPlan_blocks(ctx, field)
 			case "messages":
 				return ec.fieldContext_DayPlan_messages(ctx, field)
+			case "canRevert":
+				return ec.fieldContext_DayPlan_canRevert(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_DayPlan_createdAt(ctx, field)
 			case "updatedAt":
@@ -3130,6 +3194,65 @@ func (ec *executionContext) fieldContext_Mutation_acceptPlan(ctx context.Context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_acceptPlan_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_revertPlan(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_revertPlan,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RevertPlan(ctx, fc.Args["date"].(model.Date))
+		},
+		nil,
+		ec.marshalNDayPlan2ᚖdayosᚋgraphᚋmodelᚐDayPlan,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_revertPlan(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_DayPlan_id(ctx, field)
+			case "planDate":
+				return ec.fieldContext_DayPlan_planDate(ctx, field)
+			case "status":
+				return ec.fieldContext_DayPlan_status(ctx, field)
+			case "blocks":
+				return ec.fieldContext_DayPlan_blocks(ctx, field)
+			case "messages":
+				return ec.fieldContext_DayPlan_messages(ctx, field)
+			case "canRevert":
+				return ec.fieldContext_DayPlan_canRevert(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_DayPlan_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_DayPlan_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DayPlan", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_revertPlan_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -3171,6 +3294,8 @@ func (ec *executionContext) fieldContext_Mutation_skipBlock(ctx context.Context,
 				return ec.fieldContext_DayPlan_blocks(ctx, field)
 			case "messages":
 				return ec.fieldContext_DayPlan_messages(ctx, field)
+			case "canRevert":
+				return ec.fieldContext_DayPlan_canRevert(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_DayPlan_createdAt(ctx, field)
 			case "updatedAt":
@@ -3228,6 +3353,8 @@ func (ec *executionContext) fieldContext_Mutation_unskipBlock(ctx context.Contex
 				return ec.fieldContext_DayPlan_blocks(ctx, field)
 			case "messages":
 				return ec.fieldContext_DayPlan_messages(ctx, field)
+			case "canRevert":
+				return ec.fieldContext_DayPlan_canRevert(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_DayPlan_createdAt(ctx, field)
 			case "updatedAt":
@@ -3285,6 +3412,8 @@ func (ec *executionContext) fieldContext_Mutation_completeBlock(ctx context.Cont
 				return ec.fieldContext_DayPlan_blocks(ctx, field)
 			case "messages":
 				return ec.fieldContext_DayPlan_messages(ctx, field)
+			case "canRevert":
+				return ec.fieldContext_DayPlan_canRevert(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_DayPlan_createdAt(ctx, field)
 			case "updatedAt":
@@ -3342,6 +3471,8 @@ func (ec *executionContext) fieldContext_Mutation_updateBlock(ctx context.Contex
 				return ec.fieldContext_DayPlan_blocks(ctx, field)
 			case "messages":
 				return ec.fieldContext_DayPlan_messages(ctx, field)
+			case "canRevert":
+				return ec.fieldContext_DayPlan_canRevert(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_DayPlan_createdAt(ctx, field)
 			case "updatedAt":
@@ -4389,6 +4520,8 @@ func (ec *executionContext) fieldContext_Query_dayPlan(ctx context.Context, fiel
 				return ec.fieldContext_DayPlan_blocks(ctx, field)
 			case "messages":
 				return ec.fieldContext_DayPlan_messages(ctx, field)
+			case "canRevert":
+				return ec.fieldContext_DayPlan_canRevert(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_DayPlan_createdAt(ctx, field)
 			case "updatedAt":
@@ -4446,6 +4579,8 @@ func (ec *executionContext) fieldContext_Query_recentPlans(ctx context.Context, 
 				return ec.fieldContext_DayPlan_blocks(ctx, field)
 			case "messages":
 				return ec.fieldContext_DayPlan_messages(ctx, field)
+			case "canRevert":
+				return ec.fieldContext_DayPlan_canRevert(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_DayPlan_createdAt(ctx, field)
 			case "updatedAt":
@@ -8258,6 +8393,11 @@ func (ec *executionContext) _DayPlan(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "canRevert":
+			out.Values[i] = ec._DayPlan_canRevert(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createdAt":
 			out.Values[i] = ec._DayPlan_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -8431,6 +8571,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "acceptPlan":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_acceptPlan(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "revertPlan":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_revertPlan(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

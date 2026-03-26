@@ -20,13 +20,15 @@ type ContextEntry struct {
 }
 
 type DayPlan struct {
-	ID        pgtype.UUID        `json:"id"`
-	PlanDate  pgtype.Date        `json:"plan_date"`
-	Status    string             `json:"status"`
-	Blocks    []byte             `json:"blocks"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
-	UserID    pgtype.UUID        `json:"user_id"`
+	ID             pgtype.UUID        `json:"id"`
+	PlanDate       pgtype.Date        `json:"plan_date"`
+	Status         string             `json:"status"`
+	Blocks         []byte             `json:"blocks"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	UserID         pgtype.UUID        `json:"user_id"`
+	PreviousBlocks []byte             `json:"previous_blocks"`
+	PreviousStatus *string            `json:"previous_status"`
 }
 
 type GoogleAuth struct {

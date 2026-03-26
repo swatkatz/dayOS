@@ -55,6 +55,8 @@ type DayPlanStore interface {
 	CreateDayPlan(ctx context.Context, arg db.CreateDayPlanParams) (db.DayPlan, error)
 	UpdateDayPlanBlocks(ctx context.Context, arg db.UpdateDayPlanBlocksParams) (db.DayPlan, error)
 	UpdateDayPlanStatus(ctx context.Context, arg db.UpdateDayPlanStatusParams) (db.DayPlan, error)
+	SavePreviousState(ctx context.Context, arg db.SavePreviousStateParams) error
+	RevertPlan(ctx context.Context, arg db.RevertPlanParams) (db.DayPlan, error)
 	RecentPlans(ctx context.Context, limit int32) ([]db.DayPlan, error)
 	GetPlanMessages(ctx context.Context, planID pgtype.UUID) ([]db.PlanMessage, error)
 	CreatePlanMessage(ctx context.Context, arg db.CreatePlanMessageParams) (db.PlanMessage, error)

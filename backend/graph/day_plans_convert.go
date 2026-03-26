@@ -29,11 +29,12 @@ type jsonBlock struct {
 
 func (dayPlanConv) FromDB(p db.DayPlan, messages []db.PlanMessage) *model.DayPlan {
 	out := &model.DayPlan{
-		ID:       uuid.UUID(p.ID.Bytes),
-		PlanDate: model.Date{Time: p.PlanDate.Time},
-		Status:   model.PlanStatus(strings.ToUpper(p.Status)),
-		Blocks:   parseBlocks(p.Blocks),
-		Messages: make([]*model.PlanMessage, len(messages)),
+		ID:        uuid.UUID(p.ID.Bytes),
+		PlanDate:  model.Date{Time: p.PlanDate.Time},
+		Status:    model.PlanStatus(strings.ToUpper(p.Status)),
+		Blocks:    parseBlocks(p.Blocks),
+		Messages:  make([]*model.PlanMessage, len(messages)),
+		CanRevert: len(p.PreviousBlocks) > 0,
 	}
 	if p.CreatedAt.Valid {
 		out.CreatedAt = model.DateTime{Time: p.CreatedAt.Time}

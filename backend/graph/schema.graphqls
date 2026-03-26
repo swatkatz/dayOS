@@ -137,6 +137,7 @@ type DayPlan {
   status:    PlanStatus!
   blocks:    [PlanBlock!]!
   messages:  [PlanMessage!]!
+  canRevert: Boolean!
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -252,6 +253,7 @@ type Mutation {
   # Plan chat
   sendPlanMessage(date: Date!, message: String! @validate(rule: CHAT_MESSAGE)): DayPlan!
   acceptPlan(date: Date!): DayPlan!
+  revertPlan(date: Date!): DayPlan!
 
   # Block actions
   skipBlock(planId: UUID!, blockId: String!): DayPlan!

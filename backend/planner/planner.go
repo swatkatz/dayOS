@@ -446,9 +446,9 @@ PLANNING RULES:
 - Don't schedule more than is realistic given the energy constraints in CONTEXT and what the user tells you about how they're feeling today.
 - A task with remaining_minutes > block duration CAN be scheduled — schedule what fits today, the rest goes on subsequent days.
 `)
-	// Only include past-time-slot rule for today's plans (CurrentTime is set only for today)
+	// Include current time and past-slot rules for today's plans
 	if input.CurrentTime != "" {
-		b.WriteString("- Never schedule anything in a past time slot.\n")
+		fmt.Fprintf(&b, "- CURRENT TIME IS %s. Do NOT schedule any block before this time. All blocks must have \"time\" >= \"%s\".\n", input.CurrentTime, input.CurrentTime)
 	}
 
 	b.WriteString(`

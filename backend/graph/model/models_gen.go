@@ -63,6 +63,7 @@ type DayPlan struct {
 	Status    PlanStatus     `json:"status"`
 	Blocks    []*PlanBlock   `json:"blocks"`
 	Messages  []*PlanMessage `json:"messages"`
+	CanRevert bool           `json:"canRevert"`
 	CreatedAt DateTime       `json:"createdAt"`
 	UpdatedAt DateTime       `json:"updatedAt"`
 }

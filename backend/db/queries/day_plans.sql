@@ -17,6 +17,17 @@ WHERE id = $1 AND user_id = @user_id RETURNING *;
 UPDATE day_plans SET status = $2, updated_at = now()
 WHERE id = $1 AND user_id = @user_id RETURNING *;
 
+-- name: SavePreviousState :exec
+UPDATE day_plans SET previous_blocks = blocks, previous_status = status
+WHERE id = $1 AND user_id = @user_id;
+
+-- name: RevertPlan :one
+UPDATE day_plans
+SET blocks = previous_blocks, status = previous_status,
+    previous_blocks = NULL, previous_status = NULL, updated_at = now()
+WHERE id = $1 AND user_id = @user_id AND previous_blocks IS NOT NULL
+RETURNING *;
+
 -- name: RecentPlans :many
 SELECT * FROM day_plans WHERE user_id = @user_id ORDER BY plan_date DESC LIMIT $1;
 

@@ -577,6 +577,44 @@ func (m *mockDayPlanStore) GetPlanMessages(_ context.Context, planID pgtype.UUID
 	return msgs, nil
 }
 
+func (m *mockDayPlanStore) SavePreviousState(_ context.Context, arg db.SavePreviousStateParams) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	p, ok := m.plans[arg.ID]
+	if !ok {
+		return fmt.Errorf("no rows in result set")
+	}
+	blocksCopy := make([]byte, len(p.Blocks))
+	copy(blocksCopy, p.Blocks)
+	p.PreviousBlocks = blocksCopy
+	status := p.Status
+	p.PreviousStatus = &status
+	m.plans[arg.ID] = p
+	return nil
+}
+
+func (m *mockDayPlanStore) RevertPlan(_ context.Context, arg db.RevertPlanParams) (db.DayPlan, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	p, ok := m.plans[arg.ID]
+	if !ok {
+		return db.DayPlan{}, fmt.Errorf("no rows in result set")
+	}
+	if p.PreviousBlocks == nil {
+		return db.DayPlan{}, fmt.Errorf("no previous state to revert to")
+	}
+	p.Blocks = p.PreviousBlocks
+	if p.PreviousStatus != nil {
+		p.Status = *p.PreviousStatus
+	}
+	p.PreviousBlocks = nil
+	p.PreviousStatus = nil
+	m.plans[arg.ID] = p
+	return p, nil
+}
+
 func (m *mockDayPlanStore) CreatePlanMessage(_ context.Context, arg db.CreatePlanMessageParams) (db.PlanMessage, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

@@ -23,6 +23,7 @@ const PLAN_FIELDS = gql`
       content
       createdAt
     }
+    canRevert
     createdAt
     updatedAt
   }
@@ -180,6 +181,15 @@ export const GET_CALENDAR_EVENTS_TODAY = gql`
       }
       version
       connected
+    }
+  }
+`
+
+export const REVERT_PLAN = gql`
+  ${PLAN_FIELDS}
+  mutation RevertPlan($date: Date!) {
+    revertPlan(date: $date) {
+      ...PlanFields
     }
   }
 `

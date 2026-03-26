@@ -18,9 +18,12 @@ interface Props {
   blocks: Block[]
   onAccept: (blocks: Block[]) => void
   accepting: boolean
+  canRevert?: boolean
+  onRevert?: () => void
+  reverting?: boolean
 }
 
-export default function PlanPreview({ blocks: sourceBlocks, onAccept, accepting }: Props) {
+export default function PlanPreview({ blocks: sourceBlocks, onAccept, accepting, canRevert, onRevert, reverting }: Props) {
   const [localBlocks, setLocalBlocks] = useState<Block[]>(sourceBlocks)
 
   // Sync when AI generates new blocks
@@ -61,11 +64,20 @@ export default function PlanPreview({ blocks: sourceBlocks, onAccept, accepting 
           onReorder={handleReorder}
         />
       </div>
-      <div className="p-3 md:p-4 border-t border-border-default">
+      <div className="p-3 md:p-4 border-t border-border-default flex gap-2">
+        {canRevert && onRevert && (
+          <button
+            onClick={onRevert}
+            disabled={reverting}
+            className="py-2.5 px-4 border border-border-default text-text-secondary rounded-xl font-medium hover:bg-bg-surface active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+          >
+            {reverting ? 'Reverting...' : 'Undo'}
+          </button>
+        )}
         <button
           onClick={() => onAccept(localBlocks)}
           disabled={localBlocks.length === 0 || accepting}
-          className="w-full py-2.5 px-4 bg-accent text-black rounded-xl font-semibold hover:bg-accent-hover active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+          className="flex-1 py-2.5 px-4 bg-accent text-black rounded-xl font-semibold hover:bg-accent-hover active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed transition-all"
         >
           {accepting ? 'Accepting...' : 'Accept Plan'}
         </button>

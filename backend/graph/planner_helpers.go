@@ -181,14 +181,14 @@ func (r *mutationResolver) buildPlanChatInput(ctx context.Context, plan db.DayPl
 		})
 	}
 
+	// Inject current wall-clock time for today's plans so the AI doesn't schedule past blocks.
+	// For a future date, current time is irrelevant — the AI plans the full day.
+	if !isFuturePlan {
+		input.CurrentTime = userNow.Format("15:04")
+	}
+
 	// For replanning, split blocks into done/skipped/remaining so the AI only replans what's needed
 	if isReplan {
-		// Only inject current wall-clock time when replanning today's plan.
-		// For a future date, current time is irrelevant — the AI plans the full day.
-		if !isFuturePlan {
-			input.CurrentTime = userNow.Format("15:04")
-		}
-
 		var allBlocks []json.RawMessage
 		if err := json.Unmarshal(plan.Blocks, &allBlocks); err == nil {
 			type blockFlags struct {

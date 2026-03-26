@@ -504,8 +504,8 @@ func TestSystemPromptTodayIncludesPastTimeRule(t *testing.T) {
 	}
 	prompt := svc.buildPlanSystemPrompt(input)
 
-	if !strings.Contains(prompt, "Never schedule anything in a past time slot") {
-		t.Error("today's plan should contain past-time-slot rule")
+	if !strings.Contains(prompt, "CURRENT TIME IS 14:30") {
+		t.Error("today's plan should contain current time rule")
 	}
 }
 

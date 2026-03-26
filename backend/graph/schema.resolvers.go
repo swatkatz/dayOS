@@ -206,6 +206,13 @@ func (r *mutationResolver) SendPlanMessage(ctx context.Context, date model.Date,
 		existingPlan = created
 	}
 
+	// Save previous state before replanning so user can revert
+	if isReplan {
+		if err := r.DayPlanStore.SavePreviousState(ctx, db.SavePreviousStateParams{ID: existingPlan.ID}); err != nil {
+			log.Printf("warning: failed to save previous plan state: %v", err)
+		}
+	}
+
 	// Gather context data for the prompt
 	input, err := r.buildPlanChatInput(ctx, existingPlan, message, date.Time, isReplan)
 	if err != nil {
@@ -266,22 +273,75 @@ func (r *mutationResolver) SendPlanMessage(ctx context.Context, date model.Date,
 		aiBlocks[i] = block
 	}
 
-	// For replanning, merge preserved (done + skipped) blocks with AI's new blocks
+	// For replanning, merge preserved blocks with AI's new blocks
 	var modelBlocks []*model.PlanBlock
 	if isReplan {
 		existing := parseBlocks(existingPlan.Blocks)
+
+		// Build sets of preserved task/routine IDs to detect duplicates
+		preservedTaskIDs := make(map[string]bool)
+		preservedRoutineIDs := make(map[string]bool)
 		for _, b := range existing {
 			if b.Done || b.Skipped {
 				modelBlocks = append(modelBlocks, b)
+				if b.TaskID != nil {
+					preservedTaskIDs[b.TaskID.String()] = true
+				}
+				if b.RoutineID != nil {
+					preservedRoutineIDs[b.RoutineID.String()] = true
+				}
 			}
 		}
-		modelBlocks = append(modelBlocks, aiBlocks...)
-		// Sort by time
+
+		// Also preserve past blocks that are neither done nor skipped (they happened but
+		// the user just didn't mark them). This prevents them from being lost during replan.
+		if input.CurrentTime != "" {
+			for _, b := range existing {
+				if !b.Done && !b.Skipped && b.Time < input.CurrentTime {
+					modelBlocks = append(modelBlocks, b)
+					if b.TaskID != nil {
+						preservedTaskIDs[b.TaskID.String()] = true
+					}
+					if b.RoutineID != nil {
+						preservedRoutineIDs[b.RoutineID.String()] = true
+					}
+				}
+			}
+		}
+
+		// Filter AI blocks: remove duplicates and past-time blocks
+		for _, b := range aiBlocks {
+			// Drop blocks scheduled in the past
+			if input.CurrentTime != "" && b.Time < input.CurrentTime {
+				continue
+			}
+			// Drop blocks that duplicate a preserved task
+			if b.TaskID != nil && preservedTaskIDs[b.TaskID.String()] {
+				continue
+			}
+			// Drop blocks that duplicate a preserved routine
+			if b.RoutineID != nil && preservedRoutineIDs[b.RoutineID.String()] {
+				continue
+			}
+			modelBlocks = append(modelBlocks, b)
+		}
+
 		sort.Slice(modelBlocks, func(i, j int) bool {
 			return modelBlocks[i].Time < modelBlocks[j].Time
 		})
 	} else {
-		modelBlocks = aiBlocks
+		// For initial plans of today, filter out past-time blocks
+		if input.CurrentTime != "" {
+			var filtered []*model.PlanBlock
+			for _, b := range aiBlocks {
+				if b.Time >= input.CurrentTime {
+					filtered = append(filtered, b)
+				}
+			}
+			modelBlocks = filtered
+		} else {
+			modelBlocks = aiBlocks
+		}
 	}
 
 	blocksData, err := marshalBlocks(modelBlocks)
@@ -342,6 +402,24 @@ func (r *mutationResolver) AcceptPlan(ctx context.Context, date model.Date) (*mo
 		return nil, fmt.Errorf("fetching plan messages: %w", err)
 	}
 	return dayPlanConverter.FromDB(updated, messages), nil
+}
+
+// RevertPlan is the resolver for the revertPlan field.
+func (r *mutationResolver) RevertPlan(ctx context.Context, date model.Date) (*model.DayPlan, error) {
+	pgDate := pgtype.Date{Time: date.Time, Valid: true}
+	plan, err := r.DayPlanStore.GetDayPlanByDate(ctx, pgDate)
+	if err != nil {
+		return nil, fmt.Errorf("No plan exists for this date")
+	}
+	reverted, err := r.DayPlanStore.RevertPlan(ctx, db.RevertPlanParams{ID: plan.ID})
+	if err != nil {
+		return nil, fmt.Errorf("No previous plan state to revert to")
+	}
+	messages, err := r.DayPlanStore.GetPlanMessages(ctx, reverted.ID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching plan messages: %w", err)
+	}
+	return dayPlanConverter.FromDB(reverted, messages), nil
 }
 
 // SkipBlock is the resolver for the skipBlock field.

@@ -255,6 +255,24 @@ func (s *ScopedQueries) UpdateDayPlanStatus(ctx context.Context, arg UpdateDayPl
 	return s.q.UpdateDayPlanStatus(ctx, arg)
 }
 
+func (s *ScopedQueries) SavePreviousState(ctx context.Context, arg SavePreviousStateParams) error {
+	uid, err := s.userID(ctx)
+	if err != nil {
+		return err
+	}
+	arg.UserID = uid
+	return s.q.SavePreviousState(ctx, arg)
+}
+
+func (s *ScopedQueries) RevertPlan(ctx context.Context, arg RevertPlanParams) (DayPlan, error) {
+	uid, err := s.userID(ctx)
+	if err != nil {
+		return DayPlan{}, err
+	}
+	arg.UserID = uid
+	return s.q.RevertPlan(ctx, arg)
+}
+
 func (s *ScopedQueries) RecentPlans(ctx context.Context, limit int32) ([]DayPlan, error) {
 	uid, err := s.userID(ctx)
 	if err != nil {

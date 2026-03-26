@@ -62,7 +62,7 @@ func TestSendPlanMessage_NewPlan(t *testing.T) {
 		factoryTask(ts, "Task "+string(rune('A'+i)))
 	}
 
-	// Configure mock planner to return some blocks
+	// Configure mock planner to return blocks — use tomorrow to avoid current-time filtering
 	mp.planChatFn = func(_ context.Context, input planner.PlanChatInput) (*planner.PlanChatOutput, error) {
 		// Verify context entries were passed
 		if len(input.ContextEntries) == 0 {
@@ -77,9 +77,9 @@ func TestSendPlanMessage_NewPlan(t *testing.T) {
 		}, nil
 	}
 
-	today := model.Date{Time: time.Now().Truncate(24 * time.Hour)}
+	tomorrow := model.Date{Time: time.Now().Truncate(24 * time.Hour).AddDate(0, 0, 1)}
 	mutation := r.Mutation()
-	result, err := mutation.SendPlanMessage(context.Background(), today, "Light day, just interview prep and exercise")
+	result, err := mutation.SendPlanMessage(context.Background(), tomorrow, "Light day, just interview prep and exercise")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -165,8 +165,8 @@ func TestSendPlanMessage_Replanning(t *testing.T) {
 	mp.planChatFn = func(_ context.Context, input planner.PlanChatInput) (*planner.PlanChatOutput, error) {
 		capturedInput = input
 		return &planner.PlanChatOutput{
-			Blocks:       []planner.Block{{ID: "b1", Time: "09:00", Duration: 60, Title: "Morning work", Category: "job"}},
-			RawResponses: []string{`[{"id":"b1"}]`},
+			Blocks:       []planner.Block{{ID: "b4", Time: "23:00", Duration: 60, Title: "Evening work", Category: "job"}},
+			RawResponses: []string{`[{"id":"b4"}]`},
 		}, nil
 	}
 
@@ -402,6 +402,65 @@ func TestSendTaskMessage_IncludesHistory(t *testing.T) {
 	// Should have passed 2 history messages
 	if len(capturedHistory) != 2 {
 		t.Errorf("expected 2 history messages, got %d", len(capturedHistory))
+	}
+}
+
+// Test: replanning saves previous state and allows revert
+func TestRevertPlan_RestoresPreviousBlocks(t *testing.T) {
+	r, _, cs, _, ds, _, mp := newPlannerResolver()
+	seedContextEntries(cs)
+
+	originalBlocks := `[
+		{"id":"b1","time":"09:00","duration":60,"title":"Morning work","category":"job","skipped":false,"done":true},
+		{"id":"b2","time":"11:00","duration":60,"title":"Mid-morning","category":"job","skipped":false}
+	]`
+	factoryDayPlan(ds, time.Now().Format("2006-01-02"), "accepted", []byte(originalBlocks))
+
+	mp.planChatFn = func(_ context.Context, input planner.PlanChatInput) (*planner.PlanChatOutput, error) {
+		return &planner.PlanChatOutput{
+			Blocks:       []planner.Block{{ID: "b5", Time: "23:00", Duration: 60, Title: "New block", Category: "job"}},
+			RawResponses: []string{`[{"id":"b5"}]`},
+		}, nil
+	}
+
+	today := model.Date{Time: time.Now().Truncate(24 * time.Hour)}
+	mutation := r.Mutation()
+
+	// Replan
+	result, err := mutation.SendPlanMessage(context.Background(), today, "Something came up")
+	if err != nil {
+		t.Fatalf("SendPlanMessage: %v", err)
+	}
+	if !result.CanRevert {
+		t.Error("expected canRevert to be true after replanning")
+	}
+
+	// Revert
+	reverted, err := mutation.RevertPlan(context.Background(), today)
+	if err != nil {
+		t.Fatalf("RevertPlan: %v", err)
+	}
+	if reverted.Status != model.PlanStatusAccepted {
+		t.Errorf("expected ACCEPTED after revert, got %v", reverted.Status)
+	}
+	if len(reverted.Blocks) != 2 {
+		t.Errorf("expected 2 blocks after revert, got %d", len(reverted.Blocks))
+	}
+	if reverted.CanRevert {
+		t.Error("expected canRevert to be false after reverting")
+	}
+}
+
+// Test: revert on plan with no previous state returns error
+func TestRevertPlan_NoPreviousState(t *testing.T) {
+	store := newMockDayPlanStore()
+	factoryDayPlan(store, "2026-03-05", "draft", threeBlocksJSON())
+	r := newDayPlanResolver(store)
+
+	date, _ := model.UnmarshalDate("2026-03-05")
+	_, err := r.Mutation().RevertPlan(context.Background(), date)
+	if err == nil {
+		t.Fatal("expected error when no previous state")
 	}
 }
 

@@ -14,7 +14,7 @@ import (
 const createDayPlan = `-- name: CreateDayPlan :one
 INSERT INTO day_plans (user_id, plan_date, status, blocks)
 VALUES ($4, $1, $2, $3)
-RETURNING id, plan_date, status, blocks, created_at, updated_at, user_id
+RETURNING id, plan_date, status, blocks, created_at, updated_at, user_id, previous_blocks, previous_status
 `
 
 type CreateDayPlanParams struct {
@@ -40,6 +40,8 @@ func (q *Queries) CreateDayPlan(ctx context.Context, arg CreateDayPlanParams) (D
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.UserID,
+		&i.PreviousBlocks,
+		&i.PreviousStatus,
 	)
 	return i, err
 }
@@ -70,7 +72,7 @@ func (q *Queries) CreatePlanMessage(ctx context.Context, arg CreatePlanMessagePa
 }
 
 const getDayPlanByDate = `-- name: GetDayPlanByDate :one
-SELECT id, plan_date, status, blocks, created_at, updated_at, user_id FROM day_plans WHERE user_id = $2 AND plan_date = $1
+SELECT id, plan_date, status, blocks, created_at, updated_at, user_id, previous_blocks, previous_status FROM day_plans WHERE user_id = $2 AND plan_date = $1
 `
 
 type GetDayPlanByDateParams struct {
@@ -89,12 +91,14 @@ func (q *Queries) GetDayPlanByDate(ctx context.Context, arg GetDayPlanByDatePara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.UserID,
+		&i.PreviousBlocks,
+		&i.PreviousStatus,
 	)
 	return i, err
 }
 
 const getDayPlanByID = `-- name: GetDayPlanByID :one
-SELECT id, plan_date, status, blocks, created_at, updated_at, user_id FROM day_plans WHERE id = $1 AND user_id = $2
+SELECT id, plan_date, status, blocks, created_at, updated_at, user_id, previous_blocks, previous_status FROM day_plans WHERE id = $1 AND user_id = $2
 `
 
 type GetDayPlanByIDParams struct {
@@ -113,6 +117,8 @@ func (q *Queries) GetDayPlanByID(ctx context.Context, arg GetDayPlanByIDParams) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.UserID,
+		&i.PreviousBlocks,
+		&i.PreviousStatus,
 	)
 	return i, err
 }
@@ -148,7 +154,7 @@ func (q *Queries) GetPlanMessages(ctx context.Context, planID pgtype.UUID) ([]Pl
 }
 
 const recentPlans = `-- name: RecentPlans :many
-SELECT id, plan_date, status, blocks, created_at, updated_at, user_id FROM day_plans WHERE user_id = $2 ORDER BY plan_date DESC LIMIT $1
+SELECT id, plan_date, status, blocks, created_at, updated_at, user_id, previous_blocks, previous_status FROM day_plans WHERE user_id = $2 ORDER BY plan_date DESC LIMIT $1
 `
 
 type RecentPlansParams struct {
@@ -173,6 +179,8 @@ func (q *Queries) RecentPlans(ctx context.Context, arg RecentPlansParams) ([]Day
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.UserID,
+			&i.PreviousBlocks,
+			&i.PreviousStatus,
 		); err != nil {
 			return nil, err
 		}
@@ -184,9 +192,54 @@ func (q *Queries) RecentPlans(ctx context.Context, arg RecentPlansParams) ([]Day
 	return items, nil
 }
 
+const revertPlan = `-- name: RevertPlan :one
+UPDATE day_plans
+SET blocks = previous_blocks, status = previous_status,
+    previous_blocks = NULL, previous_status = NULL, updated_at = now()
+WHERE id = $1 AND user_id = $2 AND previous_blocks IS NOT NULL
+RETURNING id, plan_date, status, blocks, created_at, updated_at, user_id, previous_blocks, previous_status
+`
+
+type RevertPlanParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) RevertPlan(ctx context.Context, arg RevertPlanParams) (DayPlan, error) {
+	row := q.db.QueryRow(ctx, revertPlan, arg.ID, arg.UserID)
+	var i DayPlan
+	err := row.Scan(
+		&i.ID,
+		&i.PlanDate,
+		&i.Status,
+		&i.Blocks,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UserID,
+		&i.PreviousBlocks,
+		&i.PreviousStatus,
+	)
+	return i, err
+}
+
+const savePreviousState = `-- name: SavePreviousState :exec
+UPDATE day_plans SET previous_blocks = blocks, previous_status = status
+WHERE id = $1 AND user_id = $2
+`
+
+type SavePreviousStateParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) SavePreviousState(ctx context.Context, arg SavePreviousStateParams) error {
+	_, err := q.db.Exec(ctx, savePreviousState, arg.ID, arg.UserID)
+	return err
+}
+
 const updateDayPlanBlocks = `-- name: UpdateDayPlanBlocks :one
 UPDATE day_plans SET blocks = $2, updated_at = now()
-WHERE id = $1 AND user_id = $3 RETURNING id, plan_date, status, blocks, created_at, updated_at, user_id
+WHERE id = $1 AND user_id = $3 RETURNING id, plan_date, status, blocks, created_at, updated_at, user_id, previous_blocks, previous_status
 `
 
 type UpdateDayPlanBlocksParams struct {
@@ -206,13 +259,15 @@ func (q *Queries) UpdateDayPlanBlocks(ctx context.Context, arg UpdateDayPlanBloc
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.UserID,
+		&i.PreviousBlocks,
+		&i.PreviousStatus,
 	)
 	return i, err
 }
 
 const updateDayPlanStatus = `-- name: UpdateDayPlanStatus :one
 UPDATE day_plans SET status = $2, updated_at = now()
-WHERE id = $1 AND user_id = $3 RETURNING id, plan_date, status, blocks, created_at, updated_at, user_id
+WHERE id = $1 AND user_id = $3 RETURNING id, plan_date, status, blocks, created_at, updated_at, user_id, previous_blocks, previous_status
 `
 
 type UpdateDayPlanStatusParams struct {
@@ -232,6 +287,8 @@ func (q *Queries) UpdateDayPlanStatus(ctx context.Context, arg UpdateDayPlanStat
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.UserID,
+		&i.PreviousBlocks,
+		&i.PreviousStatus,
 	)
 	return i, err
 }
